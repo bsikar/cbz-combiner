@@ -52,20 +52,20 @@ typedef enum {
   } while (0)
 
 // clang-format off
-#define print_usage(argv)                                                                                  \
-  do {                                                                                                     \
-    printf(                                                                                                \
-        "Usage: %s [color option] [verbose option] [rest of the options] <file1.cbz> [file2.cbz] ...\n"    \
-        "Options:\n"                                                                                       \
-        "  -h, --help          Display this help and exit\n"                                               \
-        "  -v, --verbose       Verbose mode\n"                                                             \
-        "  -vv, --very_verbose Very Verbose mode\n"                                                        \
-        "      --files         List all .cbz files (cannot be used with --dirs)\n"                         \
-        "      --dirs          List all dirs (cannot be used with --files)\n"                              \
-        "  -o                  Specify output file (default is combined.cbz)\n"                            \
-        "  -c, --color         Specify output to use color\n"                                              \
-        "\nBecause of how the cli is parsed color then verbose options should go first (for good logs)\n", \
-        argv[0]);                                                                                          \
+#define print_usage(argv)                                                                                   \
+  do {                                                                                                      \
+    printf(                                                                                                 \
+        "Usage: %s [color option] [verbose option] [rest of the options] <file1.cbz> [file2.cbz] ...\n"     \
+        "Options:\n"                                                                                        \
+        "  -h,  --help          Display this help and exit\n"                                               \
+        "  -v,  --verbose       Verbose mode\n"                                                             \
+        "  -vv, --very_verbose  Very Verbose mode\n"                                                        \
+        "  -f,  --files         List all .cbz files (cannot be used with --dirs)\n"                         \
+        "  -d,  --dirs          List all dirs (cannot be used with --files)\n"                              \
+        "  -o,  --output        Specify output file (default is combined.cbz)\n"                            \
+        "  -c, --color          Specify output to use color\n"                                              \
+        "\nBecause of how the cli is parsed color then verbose options should go first (for good logs)\n",  \
+        argv[0]);                                                                                           \
   } while (0)
 // clang-format on
 

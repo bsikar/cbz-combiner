@@ -55,7 +55,7 @@ void handle_cli(const int *argc, const char **argv, uint32_t *input_count,
     } else if (strcmp(argv[i], "-vv") == 0 ||
                strcmp(argv[i], "--very_verbose") == 0) {
       *verbose_mode = VERY_VERBOSE;
-    } else if (strcmp(argv[i], "-o") == 0) {
+    } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
       check_arg(i++, *argc, 2);
       printfv(*verbose_mode, *color_mode, BLUE, "Freeing ouput_file: %s\n",
               *output_file);
@@ -63,7 +63,7 @@ void handle_cli(const int *argc, const char **argv, uint32_t *input_count,
       *output_file = (char *)mallocv("output_file", *verbose_mode, *color_mode,
                                      strlen(argv[i]) + 1, -1);
       strcpy(*output_file, argv[i]);
-    } else if (strcmp(argv[i], "--files") == 0) {
+    } else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--files") == 0) {
       check_arg(i, *argc, 5);
       if (*input_mode == DIRECTORIES) {
         // must free
@@ -71,7 +71,7 @@ void handle_cli(const int *argc, const char **argv, uint32_t *input_count,
         print_error(4);
       }
       *input_mode = FILES;
-    } else if (strcmp(argv[i], "--dirs") == 0) {
+    } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dirs") == 0) {
       check_arg(i, *argc, 5);
       if (*input_mode == FILES) {
         // must free

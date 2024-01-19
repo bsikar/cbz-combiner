@@ -40,7 +40,6 @@ const char *error_messages[] = {
 
 int main(int argc, char **argv) {
   uint32_t input_count = 0;
-  // char          *output_file  = DEFAULT_OUTPUT_FILE_NAME;
   char    *output_file = (char *)malloc(strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
   strcpy(output_file, DEFAULT_OUTPUT_FILE_NAME);
   verbose_mode_e verbose_mode = VERBOSE_MODE_E_NONE;
