@@ -1,0 +1,17 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/x86_64-linux-gnu-gcc-10",
+      "-std=c17",
+      "-g",
+      "-Wall",
+      "-c",
+      "src/main.c",
+      "-o",
+      "obj/main.o"
+    ],
+    "directory": "/home/brighton/cbz-combiner",
+    "file": "/home/brighton/cbz-combiner/src/main.c",
+    "output": "/home/brighton/cbz-combiner/obj/main.o"
+  }
+]
