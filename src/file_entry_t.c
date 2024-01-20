@@ -1,6 +1,7 @@
 #include "file_entry_t.h"
 #include "cli.h"
 #include "extras.h"
+#include <dirent.h>
 #include <regex.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -51,14 +52,17 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
                                const color_mode_e   *color_mode) {
   uint32_t tmp_file_count = 0;
   for (uint32_t i = 0; i < *file_count; ++i) {
-    if (strstr(input_files[i], CBZ) == NULL || !is_file(input_files[i])) {
-      continue;
+    if (input_files[i] == NULL || strstr(input_files[i], CBZ) == NULL ||
+        !is_file(input_files[i])) {
+      printfv(*verbose_mode, *color_mode, RED,
+              "File either doesnt exist or is an invalid file type <%s>\n",
+              input_files[i]);
     }
     int32_t number = extract_file_name_number((const char *)input_files[i],
                                               verbose_mode, color_mode);
     if (number == -1) {
       printfv(*verbose_mode, *color_mode, RED,
-              "Failed to parse the number for %s\n", input_files[i]);
+              "Failed to parse the number for <%s>\n", input_files[i]);
       continue;
     }
     printfv(*verbose_mode, *color_mode, DARK_GREEN,
@@ -76,7 +80,106 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
   *sorted_files = (file_entry_t *)reallocv(
       *verbose_mode, *color_mode, *sorted_files, "sorted_files",
       *file_count * sizeof(file_entry_t), -1);
-  qsort(sorted_files, *file_count, sizeof(file_entry_t), compare_file_entry_ts);
+  qsort(*sorted_files, *file_count, sizeof(file_entry_t),
+        compare_file_entry_ts);
+
+  if (*verbose_mode == VERY_VERBOSE) {
+    printfv(*verbose_mode, *color_mode, "", "The parsed file data:\n");
+    for (uint32_t i = 0; i < *file_count; ++i) {
+      printfv(*verbose_mode, *color_mode, "", "  %p - %u - %s\n",
+              &sorted_files[i], (*sorted_files)[i].number,
+              (*sorted_files)[i].filename);
+    }
+  }
+}
+
+void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
+                              const uint32_t *dir_count, uint32_t *file_count,
+                              const verbose_mode_e *verbose_mode,
+                              const color_mode_e   *color_mode) {
+  DIR           *d;
+  struct dirent *dir;
+  uint32_t       buffer_size = 50;
+  *sorted_files = (file_entry_t *)malloc(buffer_size * sizeof(file_entry_t));
+  *file_count   = 0;
+  bool *number_map =
+      calloc(INT32_MAX, sizeof(bool)); // UUUHHH LOTS OF MEM like 1gb
+
+  for (uint32_t i = 0; i < *dir_count; ++i) {
+    if (!is_dir(input_dirs[i])) {
+      printfv(*verbose_mode, *color_mode, RED,
+              "Directory <%s> does not exist\n", input_dirs[i]);
+      continue;
+    }
+
+    d = opendir(input_dirs[i]);
+    if (d == NULL) {
+      continue;
+    }
+
+    while ((dir = readdir(d)) != NULL) {
+      size_t dir_len            = strlen(input_dirs[i]);
+      bool   has_trailing_slash = (input_dirs[i][dir_len - 1] == '/');
+      // +2 for '/' and '\0', +1 if it already has '/'
+      size_t file_length =
+          dir_len + strlen(dir->d_name) + (has_trailing_slash ? 1 : 2);
+      char *file =
+          (char *)mallocv("file", *verbose_mode, *color_mode, file_length, -1);
+      if (has_trailing_slash) {
+        snprintf(file, file_length, "%s%s", input_dirs[i], dir->d_name);
+      } else {
+        snprintf(file, file_length, "%s/%s", input_dirs[i], dir->d_name);
+      }
+
+      if (strstr(file, CBZ) == NULL || !is_file(file)) {
+        printfv(*verbose_mode, *color_mode, RED,
+                "File either doesnt exist or is an invalid file type <%s>\n",
+                file);
+        freev(*verbose_mode, *color_mode, file, "file", -1);
+        continue;
+      }
+
+      int32_t number = extract_file_name_number((const char *)file,
+                                                verbose_mode, color_mode);
+      if (number == -1) {
+        printfv(*verbose_mode, *color_mode, RED,
+                "Failed to parse the number for <%s>\n", file);
+        freev(*verbose_mode, *color_mode, file, "file", -1);
+        continue;
+      }
+
+      if (number_map[number]) { // check if the number is already in the map
+        freev(*verbose_mode, *color_mode, file, "file", -1);
+        continue;
+      }
+
+      number_map[number]                  = true;
+      (*sorted_files)[*file_count].number = number;
+      (*sorted_files)[*file_count].filename =
+          (char *)mallocv("sorted_files[].filename (index is)", *verbose_mode,
+                          *color_mode, strlen(file) + 1, *file_count);
+      strcpy((*sorted_files)[*file_count].filename, file);
+      freev(*verbose_mode, *color_mode, file, "file", -1);
+      (*file_count)++;
+
+      if (*file_count == buffer_size) {
+        buffer_size *= 2;
+        *sorted_files =
+            reallocv(*verbose_mode, *color_mode, *sorted_files, "sorted_files",
+                     buffer_size * sizeof(file_entry_t), -1);
+      }
+    }
+    closedir(d);
+  }
+
+  // must free
+  free(number_map); // goodbye large 2GB array
+  free_input(input_dirs, dir_count, verbose_mode, color_mode);
+  *sorted_files = (file_entry_t *)reallocv(
+      *verbose_mode, *color_mode, *sorted_files, "sorted_files",
+      *file_count * sizeof(file_entry_t), -1);
+  qsort(*sorted_files, *file_count, sizeof(file_entry_t),
+        compare_file_entry_ts);
 
   if (*verbose_mode == VERY_VERBOSE) {
     printfv(*verbose_mode, *color_mode, "", "The parsed file data:\n");
@@ -96,7 +199,7 @@ bool is_file(const char *path) {
   return S_ISREG(statbuf.st_mode);
 }
 
-bool is_directory(const char *path) {
+bool is_dir(const char *path) {
   struct stat statbuf;
   if (stat(path, &statbuf) != 0) {
     return false; // unable to get info, assume it's not a directory

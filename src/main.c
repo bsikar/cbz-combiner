@@ -20,6 +20,9 @@
  * Day 2: more progress + added -vv and -c (also fixed memory leaks)
  *        todo: there is no progress on directories, do that
  *              unziping and combining still needs to be done
+ *
+ * Day 3: added -d/--dirs
+ *        todo: add the unzipping and combining
  */
 
 #include "cli.h"
@@ -73,20 +76,23 @@ int main(int argc, char **argv) {
     file_entry_t *sorted_files =
         (file_entry_t *)mallocv("sorted_files", verbose_mode, color_mode,
                                 input_count * sizeof(file_entry_t), -1);
-    uint32_t *file_count =
-        &input_count; // just renamming for better readibility
     // parse files and sort them
     printfv(verbose_mode, color_mode, "", "Handling parsing files\n");
-    handle_file_input_parsing(&sorted_files, input, file_count, &verbose_mode,
+    handle_file_input_parsing(&sorted_files, input, &input_count, &verbose_mode,
                               &color_mode);
 
     // must free
-    free_sorted_files(&sorted_files, file_count, &verbose_mode, &color_mode);
-    free_output_file(&output_file, &verbose_mode, &color_mode);
+    free_sorted_files(&sorted_files, &input_count, &verbose_mode, &color_mode);
   } else {
-    printfv(verbose_mode, color_mode, "", "Handling parsing directories\n");
-    // TODO: handle_dir_input_parsing -> this calls file input parsing
+    file_entry_t *sorted_files = NULL;
+    uint32_t      file_count   = 0;
+
+    printfv(verbose_mode, color_mode, "", "Handling parsing dirs\n");
+    handle_dir_input_parsing(&sorted_files, input, &input_count, &file_count,
+                             &verbose_mode, &color_mode);
+    free_sorted_files(&sorted_files, &file_count, &verbose_mode, &color_mode);
   }
+  free_output_file(&output_file, &verbose_mode, &color_mode);
 
   return 0;
 }

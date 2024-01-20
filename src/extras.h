@@ -17,27 +17,12 @@ typedef enum {
   COLOR_ENABLED,
 } color_mode_e;
 
-// Regular color definitions
+// colors
 #define RED    "\033[38;5;9m"
-#define GREEN  "\033[38;5;10m"
 #define BLUE   "\033[38;5;12m"
-#define ORANGE "\033[38;5;214m" // Orange is typically bright by default
-#define YELLOW "\033[38;5;11m"
-
-// Light color definitions
-#define LIGHT_RED    "\033[38;5;196m"
-#define LIGHT_GREEN  "\033[38;5;82m"
-#define LIGHT_BLUE   "\033[38;5;21m"
-#define LIGHT_ORANGE "\033[38;5;220m"
-#define LIGHT_YELLOW "\033[38;5;226m"
-
-// Dark color definitions
-#define DARK_RED    "\033[38;5;1m"
 #define DARK_GREEN  "\033[38;5;2m"
-#define DARK_BLUE   "\033[38;5;4m"
 #define DARK_ORANGE "\033[38;5;208m"
 #define DARK_YELLOW "\033[38;5;3m"
-
 #define RESET "\033[0m"
 
 #define DEFAULT_OUTPUT_FILE_NAME "combined_output.cbz"

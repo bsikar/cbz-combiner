@@ -47,6 +47,24 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
                                const verbose_mode_e *verbose_mode,
                                const color_mode_e   *color_mode);
 /**
+ * Adds and sorts files to the sorted_files list. It will also free the
+ * input_dirs so no need to handle freeing outside of calling this function.
+ * If there are duplicate files the dir passed in first will take precedence
+ *
+ * @param sorted_files Pointer to the sorted files list
+ * @param input_dirs Pointer to the input files
+ * @param dir_count Pointer to the dir count
+ * @param file_count Pointer to the file count
+ * @param verbose_mode Pointer to the verbose_mode flag
+ * @param color_mode Pointer to the color mode flag
+ * @return void
+ */
+void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
+                              const uint32_t *dir_count, uint32_t *file_count,
+                              const verbose_mode_e *verbose_mode,
+                              const color_mode_e   *color_mode);
+
+/**
  * Verifies that a string is a file
  *
  * @param path The file path
@@ -60,7 +78,7 @@ bool is_file(const char *path);
  * @param path The dir path
  * @return bool
  */
-bool is_directory(const char *path);
+bool is_dir(const char *path);
 
 /**
  * Frees the sorted files
