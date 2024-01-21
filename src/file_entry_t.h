@@ -11,18 +11,6 @@ typedef struct {
 } file_entry_t;
 
 /**
- * Extracts the number in a file's name
- *
- * @param filename Pointer to the file name
- * @param verbose_mode Pointer to the verbose_mode flag
- * @param color_mode Pointer to the color mode flag
- * @return int32_t the number in the name
- */
-int32_t extract_file_name_number(const char           *filename,
-                                 const verbose_mode_e *verbose_mode,
-                                 const color_mode_e   *color_mode);
-
-/**
  * Compares two file_entry_t instances
  *
  * @param a Pointer to the first file instance

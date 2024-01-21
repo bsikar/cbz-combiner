@@ -23,9 +23,13 @@
  *
  * Day 3: added -d/--dirs
  *        todo: add the unzipping and combining
+ *
+ * Day 4: added unzipping and combining
+ *        todo: could make it faster, but it works
  */
 
 #include "cli.h"
+#include "extract.h"
 #include "extras.h"
 #include "file_entry_t.h"
 #include <stdbool.h>
@@ -49,7 +53,9 @@ int main(int argc, char **argv) {
   color_mode_e   color_mode   = COLOR_DISABLED;
   char         **input = (char **)mallocv("input", verbose_mode, color_mode,
                                           argc * sizeof(char *), -1);
-  input_mode_e   input_mode = INPUT_MODE_E_NONE;
+  input_mode_e   input_mode   = INPUT_MODE_E_NONE;
+  file_entry_t  *sorted_files = NULL;
+  uint32_t       file_count   = 0;
 
   if (input == NULL) {
     print_error(3);
@@ -73,25 +79,27 @@ int main(int argc, char **argv) {
 
   // files is default
   if (input_mode == FILES || input_mode == INPUT_MODE_E_NONE) {
-    file_entry_t *sorted_files =
+    sorted_files =
         (file_entry_t *)mallocv("sorted_files", verbose_mode, color_mode,
                                 input_count * sizeof(file_entry_t), -1);
     // parse files and sort them
     printfv(verbose_mode, color_mode, "", "Handling parsing files\n");
     handle_file_input_parsing(&sorted_files, input, &input_count, &verbose_mode,
                               &color_mode);
-
-    // must free
-    free_sorted_files(&sorted_files, &input_count, &verbose_mode, &color_mode);
+    file_count = input_count;
   } else {
-    file_entry_t *sorted_files = NULL;
-    uint32_t      file_count   = 0;
+    sorted_files = NULL;
+    file_count   = 0;
 
     printfv(verbose_mode, color_mode, "", "Handling parsing dirs\n");
     handle_dir_input_parsing(&sorted_files, input, &input_count, &file_count,
                              &verbose_mode, &color_mode);
-    free_sorted_files(&sorted_files, &file_count, &verbose_mode, &color_mode);
   }
+  // do the program now lol
+  extract_and_combine_cbz((const file_entry_t **)&sorted_files, output_file,
+                          &file_count, &verbose_mode, &color_mode);
+
+  free_sorted_files(&sorted_files, &file_count, &verbose_mode, &color_mode);
   free_output_file(&output_file, &verbose_mode, &color_mode);
 
   return 0;

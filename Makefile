@@ -58,8 +58,11 @@ run:
 	@./$(BIN_DIR)/$(NAME) $(ARGS)
 
 # Additional Rules
-.PHONY: debug valgrind release
+.PHONY: gdb debug valgrind release
 debug:
+	@$(MAKE) CFLAGS="$(DEBUG_CFLAGS)"
+
+gdb:
 	@$(MAKE) CFLAGS="$(DEBUG_CFLAGS)"
 	@echo "Starting GDB..."
 	@gdb ./$(BIN_DIR)/$(NAME)

@@ -1,44 +1,14 @@
 #include "file_entry_t.h"
 #include "cli.h"
+#include "extract.h"
 #include "extras.h"
 #include <dirent.h>
-#include <regex.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-/// the file names must follow [<number>]_<name>.cbz
-/// patern will get the <number> portion
-int32_t extract_file_name_number(const char           *filename,
-                                 const verbose_mode_e *verbose_mode,
-                                 const color_mode_e   *color_mode) {
-  regex_t     regex;
-  regmatch_t  group_array[2];
-  const char *pattern = "\\[(.*?)\\]";
-  printfv(*verbose_mode, *color_mode, DARK_ORANGE, "Trying to find %s in %s\n",
-          pattern, filename);
-  regcomp(&regex, pattern, REG_EXTENDED);
-
-  if (regexec(&regex, filename, 2, group_array, 0) != 0) {
-    printfv(*verbose_mode, *color_mode, RED, "Regex failed\n");
-    regfree(&regex);
-    return -1; // handle error
-  }
-
-  int    start = group_array[1].rm_so;
-  int    end   = group_array[1].rm_eo;
-  size_t size  = end - start;
-  char   number[size + 1];
-
-  strncpy(number, filename + start, size);
-  number[size] = 0;
-  regfree(&regex);
-
-  return atoi(number);
-}
 
 int32_t compare_file_entry_ts(const void *a, const void *b) {
   file_entry_t *file_a = (file_entry_t *)a;
@@ -50,9 +20,12 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
                                uint32_t             *file_count,
                                const verbose_mode_e *verbose_mode,
                                const color_mode_e   *color_mode) {
-  uint32_t tmp_file_count = 0;
+  uint32_t tmp_file_count  = 0;
+  uint32_t number_map_size = INT16_MAX;
+  bool    *number_map      = callocv("number_map", *verbose_mode, *color_mode,
+                                     number_map_size, sizeof(bool), -1);
   for (uint32_t i = 0; i < *file_count; ++i) {
-    if (input_files[i] == NULL || strstr(input_files[i], CBZ) == NULL ||
+    if (input_files[i] == NULL || is_photo(input_files[i]) ||
         !is_file(input_files[i])) {
       printfv(*verbose_mode, *color_mode, RED,
               "File either doesnt exist or is an invalid file type <%s>\n",
@@ -65,6 +38,18 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
               "Failed to parse the number for <%s>\n", input_files[i]);
       continue;
     }
+    while (number > number_map_size) { // resize number_map
+      number_map_size *= 2;
+      number_map       = reallocv(*verbose_mode, *color_mode, number_map,
+                                  "number_map", number_map_size * sizeof(bool), -1);
+    }
+
+    if (number_map[number]) { // check if the number is already in the map
+      freev(*verbose_mode, *color_mode, input_files[i], "input_files", i);
+      continue;
+    }
+
+    number_map[number] = true;
     printfv(*verbose_mode, *color_mode, DARK_GREEN,
             "Sucessful parsing: #%u (%i, %s)\n", i, number, input_files[i]);
     (*sorted_files)[tmp_file_count].number   = number;
@@ -75,6 +60,7 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
   }
 
   // must free
+  freev(*verbose_mode, *color_mode, number_map, "number_map", -1);
   free_input(input_files, file_count, verbose_mode, color_mode);
   *file_count   = tmp_file_count;
   *sorted_files = (file_entry_t *)reallocv(
@@ -99,11 +85,14 @@ void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
                               const color_mode_e   *color_mode) {
   DIR           *d;
   struct dirent *dir;
-  uint32_t       buffer_size = 50;
-  *sorted_files = (file_entry_t *)malloc(buffer_size * sizeof(file_entry_t));
-  *file_count   = 0;
-  bool *number_map =
-      calloc(INT32_MAX, sizeof(bool)); // UUUHHH LOTS OF MEM like 1gb
+  uint32_t       buffer_size     = 50;
+  uint32_t       number_map_size = INT16_MAX;
+  *sorted_files =
+      (file_entry_t *)mallocv("sorted_files", *verbose_mode, *color_mode,
+                              buffer_size * sizeof(file_entry_t), -1);
+  *file_count      = 0;
+  bool *number_map = callocv("number_map", *verbose_mode, *color_mode,
+                             number_map_size, sizeof(bool), -1);
 
   for (uint32_t i = 0; i < *dir_count; ++i) {
     if (!is_dir(input_dirs[i])) {
@@ -148,10 +137,18 @@ void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
         continue;
       }
 
+      while (number > number_map_size) { // resize number_map
+        number_map_size *= 2;
+        number_map       = reallocv(*verbose_mode, *color_mode, number_map,
+                                    "number_map", number_map_size * sizeof(bool), -1);
+      }
+
       if (number_map[number]) { // check if the number is already in the map
         freev(*verbose_mode, *color_mode, file, "file", -1);
         continue;
       }
+      printfv(*verbose_mode, *color_mode, DARK_GREEN,
+              "Sucessful parsing: #%u (%i, %s)\n", i, number, file);
 
       number_map[number]                  = true;
       (*sorted_files)[*file_count].number = number;
@@ -173,7 +170,7 @@ void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
   }
 
   // must free
-  free(number_map); // goodbye large 2GB array
+  freev(*verbose_mode, *color_mode, number_map, "number_map", -1);
   free_input(input_dirs, dir_count, verbose_mode, color_mode);
   *sorted_files = (file_entry_t *)reallocv(
       *verbose_mode, *color_mode, *sorted_files, "sorted_files",

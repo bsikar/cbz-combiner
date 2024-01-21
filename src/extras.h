@@ -18,12 +18,12 @@ typedef enum {
 } color_mode_e;
 
 // colors
-#define RED    "\033[38;5;9m"
-#define BLUE   "\033[38;5;12m"
+#define RED         "\033[38;5;9m"
+#define BLUE        "\033[38;5;12m"
 #define DARK_GREEN  "\033[38;5;2m"
 #define DARK_ORANGE "\033[38;5;208m"
 #define DARK_YELLOW "\033[38;5;3m"
-#define RESET "\033[0m"
+#define RESET       "\033[0m"
 
 #define DEFAULT_OUTPUT_FILE_NAME "combined_output.cbz"
 #define CBZ                      ".cbz"
@@ -117,6 +117,48 @@ typedef enum {
 #define mallocv(ptr_name, verbose_mode, color_mode, size, index)               \
   ({                                                                           \
     void *ptr = malloc(size);                                                  \
+    if (verbose_mode == VERY_VERBOSE) {                                        \
+      if (index != -1) {                                                       \
+        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+                "Attempting to allocate %zu bytes to <%s[%d] (%p)>\n", size,   \
+                ptr_name, index, ptr);                                         \
+      } else {                                                                 \
+        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+                "Attempting to allocate %zu bytes to <%s (%p)>\n", size,       \
+                ptr_name, ptr);                                                \
+      }                                                                        \
+    }                                                                          \
+    if (ptr == NULL) {                                                         \
+      if (verbose_mode == VERY_VERBOSE) {                                      \
+        if (index != -1) {                                                     \
+          printfv(verbose_mode, color_mode, RED,                               \
+                  "Failed to allocate %zu bytes to <%s[%d] (%p)>\n", size,     \
+                  ptr_name, index, ptr);                                       \
+        } else {                                                               \
+          printfv(verbose_mode, color_mode, RED,                               \
+                  "Failed to allocate %zu bytes to <%s (%p)>\n", size,         \
+                  ptr_name, ptr);                                              \
+        }                                                                      \
+      }                                                                        \
+    } else {                                                                   \
+      if (verbose_mode == VERY_VERBOSE) {                                      \
+        if (index != -1) {                                                     \
+          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+                  "Allocated %zu bytes to <%s[%d] (%p)>\n", size, ptr_name,    \
+                  index, ptr);                                                 \
+        } else {                                                               \
+          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+                  "Allocated %zu bytes to <%s (%p)>\n", size, ptr_name, ptr);  \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+    ptr;                                                                       \
+  })
+
+#define callocv(ptr_name, verbose_mode, color_mode, size1, size2, index)       \
+  ({                                                                           \
+    void  *ptr  = calloc(size1, size2);                                        \
+    size_t size = size1 * size2;                                               \
     if (verbose_mode == VERY_VERBOSE) {                                        \
       if (index != -1) {                                                       \
         printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
