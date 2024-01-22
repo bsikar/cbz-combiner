@@ -25,12 +25,13 @@ void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
   bool    *number_map      = callocv("number_map", *verbose_mode, *color_mode,
                                      number_map_size, sizeof(bool), -1);
   for (uint32_t i = 0; i < *file_count; ++i) {
-    if (input_files[i] == NULL || is_photo(input_files[i]) ||
-        !is_file(input_files[i])) {
+    if (input_files[i] == NULL || !is_file(input_files[i])) {
       printfv(*verbose_mode, *color_mode, RED,
-              "File either doesnt exist or is an invalid file type <%s>\n",
+              "File either doesnt exist or is an invalid file <%s>\n",
               input_files[i]);
+      continue;
     }
+
     int32_t number = extract_file_name_number((const char *)input_files[i],
                                               verbose_mode, color_mode);
     if (number == -1) {

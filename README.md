@@ -1,6 +1,6 @@
 ```
 sudo apt update
-sudo apt install libzip-dev bear
+sudo apt install libzip-dev bear libpng-dev libjpeg-dev
 bear -- make
 
 # good command to find all leaks

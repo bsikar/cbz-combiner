@@ -26,6 +26,14 @@
  *
  * Day 4: added unzipping and combining
  *        todo: could make it faster, but it works
+ *
+ * Day 5: found some errors that need to be fixed:
+ *        - do more error handling
+ *        - some files are not .png's, but are being renamed as a png
+ *        - some photos are rly 2 photos next to each other
+ *          -> some manga have panels stretch across and the images are 2 in 1
+ *          -> so make [X|Y] into [X] and [Y]
+ *          -> this can be done with libpng, but jpegs != png
  */
 
 #include "cli.h"
