@@ -6,12 +6,6 @@
 #include <png.h>
 #include <stdint.h>
 
-typedef enum {
-  FILE_TYPE_E_OTHER,
-  PNG,
-  JPEG,
-} file_type_e;
-
 typedef struct {
   unsigned char *data;
   size_t         size;
@@ -49,9 +43,9 @@ void extract_and_combine_cbz(const file_entry_t  **softed_files,
  * Checks if a file is a photo (png or jpeg)
  *
  * @param filename The file name
- * @return file_type_e
+ * @return bool
  */
-file_type_e is_photo(const char *filename);
+bool is_photo(const char *filename);
 
 /**
  * Extracts the number in a file's name
@@ -66,17 +60,6 @@ int32_t extract_file_name_number(const char           *filename,
                                  const color_mode_e   *color_mode);
 
 // TODO: ADD DOC COMMENTS HERE
-void png_memory_read(png_structp png_ptr, png_bytep data, png_size_t length);
-
-void get_png_dimensions_from_memory(const unsigned char *data, size_t size,
-                                    uint32_t *width, uint32_t *height,
-                                    const verbose_mode_e *verbose_mode,
-                                    const color_mode_e   *color_mode);
-
-void get_jpeg_dimensions_from_memory(const unsigned char *data, size_t size,
-                                    uint32_t *width, uint32_t *height,
-                                    const verbose_mode_e *verbose_mode,
-                                    const color_mode_e   *color_mode);
 bool is_png(const unsigned char *data, size_t size);
 bool is_jpeg(const unsigned char *data, size_t size);
 
