@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "extract.h"
 #include "cli.h"
 #include "extras.h"
@@ -166,7 +167,7 @@ void _find_rotated_and_double_pages(const cli_flags_t *cli_flags,
     photo_t curr_photo = (*photos)[i];
     if (curr_photo.double_page && curr_photo.on_its_side) {
       if (curr_photo.width * 2 >= curr_photo.height) {
-        curr_photo.on_its_side = DOUBLE_PAGE_FALSE;
+        curr_photo.on_its_side = false;
         printfv(*cli_flags, "", "%s is a double page\n", curr_photo.name);
       } else {
         curr_photo.double_page = DOUBLE_PAGE_FALSE;
@@ -176,6 +177,7 @@ void _find_rotated_and_double_pages(const cli_flags_t *cli_flags,
     }
   }
 }
+
 void _split_double_pages(const cli_flags_t *cli_flags,
                          const uint32_t    *photo_count_before,
                          const uint32_t *photo_counter, photo_t **photos) {
@@ -208,7 +210,7 @@ void _split_double_pages(const cli_flags_t *cli_flags,
     new_photo->id          = curr_photo->id;
     new_photo->width       = curr_photo->width;
     new_photo->height      = curr_photo->height;
-    new_photo->on_its_side = DOUBLE_PAGE_FALSE;
+    new_photo->on_its_side = false;
     new_photo->double_page = DOUBLE_PAGE_SECOND;
     // cbz_path
     size_t len             = strlen(curr_photo->cbz_path) + 1;
@@ -224,129 +226,140 @@ void _split_double_pages(const cli_flags_t *cli_flags,
   }
 }
 
-void _handle_cbz_entry(const cli_flags_t *cli_flags, struct zip *z,
+void _handle_cbz_entry(const cli_flags_t *cli_flags, const char *cbz_path,
                        uint32_t *photo_counter, photo_t **photos,
                        uint32_t *photos_arr_len) {
-  zip_uint64_t num_entries = zip_get_num_entries(z, 0);
-  for (zip_uint64_t j = 0; j < num_entries; ++j) {
-    if (*photo_counter >= *photos_arr_len) {
-      *photos_arr_len *= 2;
-      *photos          = realloc(*photos, *photos_arr_len * sizeof(photo_t));
-      if (!*photos) {
-        // Handle allocation failure
-        exit(1); // Or another form of error handling
-      }
-    }
+  // Open the zip file
+  int    err;
+  zip_t *z = zip_open(cbz_path, 0, &err);
+  if (!z) {
+    fprintf(stderr, "Failed to open CBZ file: %s\n", cbz_path);
+    return;
+  }
 
-    const char *name = zip_get_name(z, j, 0);
-    if (!name)
-      continue; // Skip if name is NULL
-    bool filetype = is_photo(name);
-    if (is_dir(name) || !filetype) {
-      printfv(*cli_flags, RED, "This is not a supported photo type <%s>\n",
-              name);
-      continue;
-    }
+  // Get the number of entries in the zip file
+  zip_int64_t num_entries = zip_get_num_entries(z, 0);
 
-    struct zip_file *file = zip_fopen(z, name, 0);
-    struct zip_stat  st;
+  for (zip_uint64_t i = 0; i < num_entries; i++) {
+    // Get file stat for entry
+    struct zip_stat st;
     zip_stat_init(&st);
-    zip_stat(z, name, 0, &st);
+    zip_stat_index(z, i, 0, &st);
 
-    unsigned char *contents =
-        (unsigned char *)mallocv(*cli_flags, "contents", st.size, -1);
-    zip_fread(file, contents, st.size);
-
-    printfv(*cli_flags, "", "Handling file <%s>\n", name);
-
-    uint32_t width = 0, height = 0;
-    char    *ext = strrchr(name, '.'); // Moved inside loop for correct scope
-    if (!_handle_dimensions(cli_flags, &width, &height, name, contents, &ext,
-                            &st)) {
-      freev(*cli_flags, contents, "contents", -1);
-      zip_fclose(file);
-      continue; // Skip if error in dimensions
+    // Extract file into memory
+    zip_file_t *zf = zip_fopen_index(z, i, 0);
+    if (!zf) {
+      continue; // Skip if cannot open file
     }
-    freev(*cli_flags, contents, "contents", -1);
-    if (width == height) {
-      printfv(*cli_flags, "", "Photo %s is square, skipping", name);
-      zip_fclose(file);
+
+    unsigned char *contents = malloc(st.size);
+    if (contents == NULL) {
+      fprintf(stderr, "Failed to allocate memory\n");
+      zip_fclose(zf);
       continue;
     }
 
-    // Prepare new filename
-    char new_filename[256];
-    snprintf(new_filename, sizeof(new_filename), "%u%s", (*photo_counter)++,
-             ext ? ext : "");
+    zip_fread(zf, contents, st.size);
 
-    printfv(*cli_flags, "",
-            "File <%s> which is now <%s> has width = <%u> and height = <%u>\n",
-            name, new_filename, width, height);
+    // Use contents to get width and height
+    uint32_t width, height;
+    char    *ext;
+    if (_get_width_and_height(cli_flags, &width, &height, &ext, contents,
+                              &st)) {
+      // Check if we need to resize the photos array
+      if (*photo_counter >= *photos_arr_len) {
+        *photos_arr_len *= 2; // Double the size
+        *photos          = realloc(*photos, *photos_arr_len * sizeof(photo_t));
+        if (*photos == NULL) {
+          fprintf(stderr, "Failed to reallocate memory\n");
+          free(contents);
+          zip_fclose(zf);
+          break;
+        }
+      }
 
-    // Allocate and set photo_t properties
-    photo_t *current_photo = &(*photos)[*photo_counter - 1];
-    size_t   len           = strlen(new_filename) + 1;
-    current_photo->name = (char *)mallocv(*cli_flags, "(*photos)[].name", len,
-                                          (uint32_t)(*photo_counter - 1));
-    strncpyv(*cli_flags, current_photo->name, new_filename, len, len);
+      // Update the photos array
+      photo_t *photo     = &(*photos)[*photo_counter];
+      photo->cbz_path    = strdup(cbz_path);
+      photo->name        = strdup(st.name);
+      photo->width       = width;
+      photo->height      = height;
+      photo->id          = *photo_counter;
+      // Determine if the photo is on its side or a double page based on
+      // dimensions
+      photo->on_its_side = false; // This would be determined by some logic
+      photo->double_page =
+          DOUBLE_PAGE_FALSE; // Similarly, determine based on width and height
 
-    current_photo->width  = width;
-    current_photo->height = height;
-    current_photo->id     = *photo_counter - 1;
-    current_photo->on_its_side =
-        width > height ? DOUBLE_PAGE_TRUE : DOUBLE_PAGE_FALSE;
-    current_photo->double_page =
-        width > height ? DOUBLE_PAGE_TRUE : DOUBLE_PAGE_FALSE;
+      (*photo_counter)++;
+    }
 
-    zip_fclose(file);
+    free(contents);
+    zip_fclose(zf);
   }
 
   zip_close(z);
+}
+
+void adjust_for_double_pages(photo_t **photos, uint32_t *photo_count) {
+  for (uint32_t i = 0; i < *photo_count; i++) {
+    // Corrected condition for identifying a double page
+    if ((*photos)[i].width > (*photos)[i].height) {
+      // Increase the photo count to accommodate the new split page
+      *photo_count += 1;
+      *photos       = realloc(*photos, (*photo_count) * sizeof(photo_t));
+      if (*photos == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+      }
+
+      // Shift all subsequent photos one position to the right to make space
+      for (uint32_t j = *photo_count - 1; j > i; j--) {
+        (*photos)[j] = (*photos)[j - 1];
+        // Duplicate the strings for the new right side of the double page to
+        // prevent double free
+        if (j == i + 1) { // Only for the immediate next photo, which is the new
+                          // right side
+          (*photos)[j].name = strdup((*photos)[j].name);
+          if ((*photos)[j]
+                  .cbz_path) { // If cbz_path is used, duplicate it as well
+            (*photos)[j].cbz_path = strdup((*photos)[j].cbz_path);
+          }
+        }
+      }
+
+      // Update the double page status for both sides
+      (*photos)[i].double_page     = DOUBLE_PAGE_FIRST;  // Left side
+      (*photos)[i + 1].double_page = DOUBLE_PAGE_SECOND; // Right side
+
+      i++; // Increment i to skip the new right side of the double page
+    }
+  }
 }
 
 void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
                              const file_entry_t **sorted_files,
                              const char          *output_file,
                              const uint32_t      *file_count) {
-  uint32_t photos_arr_len = (*file_count * 30); // Assume each cbz has 30 photos
-  photo_t *photos         = (photo_t *)mallocv(*cli_flags, "photos",
-                                               photos_arr_len * sizeof(photo_t), -1);
-
-  uint32_t photo_counter = 0;
-  for (uint32_t i = 0; i < *file_count; ++i) {
-    struct zip *z = zip_open((*sorted_files)[i].filename, 0, NULL);
-    if (z == NULL) {
-      printfv(*cli_flags, RED, "Failed to open <%s>\n",
-              (*sorted_files)[i].filename);
-      continue;
-    }
-
-    // Set cbz_path for the current batch of photos
-    size_t len = strlen((*sorted_files)[i].filename) + 1;
-    for (uint32_t j = photo_counter;
-         j < photos_arr_len && j < photo_counter + 30; ++j) {
-      photos[j].cbz_path =
-          (char *)mallocv(*cli_flags, "photos[].cbz_path", len, j);
-      strncpyv(*cli_flags, photos[j].cbz_path, (*sorted_files)[i].filename, len,
-               len);
-    }
-
-    _handle_cbz_entry(cli_flags, z, &photo_counter, &photos, &photos_arr_len);
-
-    // No need to reallocate photos array here as it's already done in
-    // _handle_cbz_entry
+  uint32_t photo_counter  = 0;
+  uint32_t photos_arr_len = 10; // Initial array size
+  photo_t *photos         = malloc(photos_arr_len * sizeof(photo_t));
+  if (photos == NULL) {
+    fprintf(stderr, "Failed to allocate memory for photos\n");
+    return;
   }
 
-  printf("%u\n", photo_counter); // Print the final count of photos
-  for (uint32_t i = 0; i < photo_counter;
-       ++i) { // Use photo_counter instead of photos_arr_len
-    printf("%u %s\n", i, photos[i].cbz_path); // Corrected to print cbz_path
+  for (uint32_t i = 0; i < *file_count; i++) {
+    _handle_cbz_entry(cli_flags, sorted_files[i]->filename, &photo_counter,
+                      &photos, &photos_arr_len);
+  }
+  adjust_for_double_pages(&photos, &photo_counter);
+
+  // Print photo information (for demonstration)
+  for (uint32_t i = 0; i < photo_counter; i++) {
+    free(photos[i].cbz_path);
+    free(photos[i].name);
   }
 
-  // Free allocated memory
-  for (uint32_t i = 0; i < photo_counter; ++i) {
-    freev(*cli_flags, photos[i].cbz_path, "photos[].cbz_path", i);
-    freev(*cli_flags, photos[i].name, "(*photos)[].name", i);
-  }
-  freev(*cli_flags, photos, "photos", -1);
+  free(photos);
 }
