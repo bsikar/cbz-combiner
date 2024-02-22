@@ -1,7 +1,7 @@
 #ifndef FILE_ENTRY_T_H
 #define FILE_ENTRY_T_H
 
-#include "extras.h"
+#include "cli.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -9,6 +9,16 @@ typedef struct {
   uint32_t number;
   char    *filename;
 } file_entry_t;
+
+typedef struct {
+  char              *cbz_path;
+  char              *name;
+  uint32_t           width;
+  uint32_t           height;
+  uint32_t           id;
+  bool               on_its_side;
+  double_page_mode_e double_page;
+} photo_t;
 
 /**
  * Compares two file_entry_t instances
@@ -23,34 +33,30 @@ int32_t compare_file_entry_ts(const void *a, const void *b);
  * Adds and sorts files to the sorted_files list. It will also free the
  * input_files so no need to handle freeing outside of calling this function
  *
+ * @param cli_flags Pointer to the cli flags
  * @param sorted_files Pointer to the sorted files list
  * @param input_files Pointer to the input files
  * @param file_count Pointer to the file count
- * @param verbose_mode Pointer to the verbose_mode flag
- * @param color_mode Pointer to the color mode flag
  * @return void
  */
-void handle_file_input_parsing(file_entry_t **sorted_files, char **input_files,
-                               uint32_t             *file_count,
-                               const verbose_mode_e *verbose_mode,
-                               const color_mode_e   *color_mode);
+void handle_file_input_parsing(const cli_flags_t *cli_flags,
+                               file_entry_t **sorted_files, char **input_files,
+                               uint32_t *file_count);
 /**
  * Adds and sorts files to the sorted_files list. It will also free the
  * input_dirs so no need to handle freeing outside of calling this function.
  * If there are duplicate files the dir passed in first will take precedence
  *
+ * @param cli_flags Pointer to the cli flags
  * @param sorted_files Pointer to the sorted files list
  * @param input_dirs Pointer to the input files
  * @param dir_count Pointer to the dir count
  * @param file_count Pointer to the file count
- * @param verbose_mode Pointer to the verbose_mode flag
- * @param color_mode Pointer to the color mode flag
  * @return void
  */
-void handle_dir_input_parsing(file_entry_t **sorted_files, char **input_dirs,
-                              const uint32_t *dir_count, uint32_t *file_count,
-                              const verbose_mode_e *verbose_mode,
-                              const color_mode_e   *color_mode);
+void handle_dir_input_parsing(const cli_flags_t *cli_flags,
+                              file_entry_t **sorted_files, char **input_dirs,
+                              const uint32_t *dir_count, uint32_t *file_count);
 
 /**
  * Verifies that a string is a file
@@ -71,14 +77,12 @@ bool is_dir(const char *path);
 /**
  * Frees the sorted files
  *
+ * @param cli_flags Pointer to the cli flags
  * @param sorted_files Pointer to the sorted files list
  * @param file_count Pointer to the file count
- * @param verbose_mode Pointer to the verbose_mode flag
- * @param color_mode Pointer to the color mode flag
  * @return void
  */
-void free_sorted_files(file_entry_t **sorted_files, const uint32_t *file_count,
-                       const verbose_mode_e *verbose_mode,
-                       const color_mode_e   *color_mode);
+void free_sorted_files(const cli_flags_t *cli_flags,
+                       file_entry_t **sorted_files, const uint32_t *file_count);
 
 #endif // FILE_ENTRY_T_H

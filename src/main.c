@@ -21,98 +21,94 @@
 #include <string.h>
 
 const char *error_messages[] = {
-    "", // no error
-    "No input files were supplied",
-    "-o was used, but no output file was supplied",
-    "malloc or other memory error",
-    "--files and --dirs were both used",
-    "--files or --dirs were used but no files were supplied"};
+    /* 0 */ "", // no error
+    /* 1 */ "No input files were supplied",
+    /* 2 */ "-o was used, but no output file was supplied",
+    /* 3 */ "malloc or other memory error",
+    /* 4 */ "--files and --dirs were both used",
+    /* 5 */ "Invalid parameter passed",
+    /* 6 */ "--files or --dirs were used but no files were supplied",
+    /* 7 */ "Invalid file was supplied",
+    /* 8 */ "Invlaid Directory was supplied"};
 
-void print_log_info(const verbose_mode_e *verbose_mode,
-                    const color_mode_e   *color_mode,
-                    const input_mode_e *input_mode, const char *output_file,
+void print_log_info(const cli_flags_t *cli_flags, const char *output_file,
                     const uint32_t *input_count, const char **input);
 
-void handle_input_parsing(const verbose_mode_e *verbose_mode,
-                          const color_mode_e   *color_mode,
-                          const input_mode_e   *input_mode,
-                          const char *output_file, uint32_t *input_count,
+void handle_input_parsing(const cli_flags_t *cli_flags, uint32_t *input_count,
                           uint32_t *file_count, char **input,
                           file_entry_t **sorted_files);
 
 int main(int argc, char **argv) {
-  uint32_t input_count = 0;
-  char    *output_file = (char *)malloc(strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
-  strcpy(output_file, DEFAULT_OUTPUT_FILE_NAME);
-  verbose_mode_e verbose_mode = VERBOSE_MODE_E_NONE;
-  color_mode_e   color_mode   = COLOR_DISABLED;
-  char         **input = (char **)mallocv("input", verbose_mode, color_mode,
-                                          argc * sizeof(char *), -1);
-  input_mode_e   input_mode   = INPUT_MODE_E_NONE;
-  file_entry_t  *sorted_files = NULL;
-  uint32_t       file_count   = 0;
+  uint32_t input_count  = 0;
+  char    *output_file  = (char *)malloc(strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
+  cli_flags_t cli_flags = {.input_mode   = INPUT_MODE_E_NONE,
+                           .color_mode   = COLOR_DISABLED,
+                           .verbose_mode = VERBOSE_MODE_E_NONE,
+                           .rotate_mode  = ROTATE_DISABLED,
+                           .flip_mode    = FLIP_DISABLED};
+  strncpyv(cli_flags, output_file, DEFAULT_OUTPUT_FILE_NAME,
+           strlen(DEFAULT_OUTPUT_FILE_NAME) + 1,
+           strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
+  char **input =
+      (char **)mallocv(cli_flags, "input", argc * sizeof(char *), -1);
+  file_entry_t *sorted_files = NULL;
+  uint32_t      file_count   = 0;
 
   if (input == NULL) {
     print_error(3);
   }
 
-  print_log_info(&verbose_mode, &color_mode, &input_mode, output_file,
-                 &input_count, (const char **)input);
+  print_log_info(&cli_flags, output_file, &input_count, (const char **)input);
 
-  handle_cli(&argc, (const char **)argv, &input_count, &output_file, input,
-             &verbose_mode, &input_mode, &color_mode);
+  handle_cli(&cli_flags, &argc, (const char **)argv, &input_count, &output_file,
+             input);
 
-  handle_input_parsing(&verbose_mode, &color_mode, &input_mode, output_file,
-                       &input_count, &file_count, input, &sorted_files);
+  handle_input_parsing(&cli_flags, &input_count, &file_count, input,
+                       &sorted_files);
 
-  extract_and_combine_cbz((const file_entry_t **)&sorted_files, output_file,
-                          &file_count, &verbose_mode, &color_mode);
+  extract_and_combine_cbz(&cli_flags, (const file_entry_t **)&sorted_files,
+                          output_file, &file_count);
 
-  free_sorted_files(&sorted_files, &file_count, &verbose_mode, &color_mode);
-  free_output_file(&output_file, &verbose_mode, &color_mode);
+  free_sorted_files(&cli_flags, &sorted_files, &file_count);
+  free_output_file(&cli_flags, &output_file);
 
   return 0;
 }
 
-void print_log_info(const verbose_mode_e *verbose_mode,
-                    const color_mode_e   *color_mode,
-                    const input_mode_e *input_mode, const char *output_file,
+void print_log_info(const cli_flags_t *cli_flags, const char *output_file,
                     const uint32_t *input_count, const char **input) {
-  if (*verbose_mode) {
-    printfv(*verbose_mode, *color_mode, "", "%sVerbose Mode: ON\n",
-            (*verbose_mode == VERY_VERBOSE) ? "Very " : "");
-    printfv(*verbose_mode, *color_mode, "", "Color Mode: %s\n",
-            *color_mode ? "ON" : "OFF");
-    printfv(*verbose_mode, *color_mode, "", "Input %s:\n",
-            (*input_mode == DIRECTORIES) ? "dirs" : "files");
+  if (cli_flags->verbose_mode) {
+    printfv(*cli_flags, "", "verbose_mode: %d\n", cli_flags->verbose_mode);
+    printfv(*cli_flags, "", "color_mode: %d\n", cli_flags->color_mode);
+    printfv(*cli_flags, "", "input_mode: %d\n", cli_flags->input_mode);
+    printfv(*cli_flags, "", "flip_mode: %d\n", cli_flags->flip_mode);
+    printfv(*cli_flags, "", "rotate_mode: %d\n", cli_flags->rotate_mode);
+    printfv(*cli_flags, "", "output_file: %s\n", output_file);
+    printfv(*cli_flags, "", "output_file: %u\n", *input_count);
     for (uint32_t i = 0; i < *input_count; ++i) {
-      printfv(*verbose_mode, *color_mode, "", "  %s\n", input[i]);
+      printfv(*cli_flags, "", "\tFile %u : %s\n", i, input[i]);
     }
-    printfv(*verbose_mode, *color_mode, "", "Output file: %s\n", output_file);
   }
 }
 
-void handle_input_parsing(const verbose_mode_e *verbose_mode,
-                          const color_mode_e   *color_mode,
-                          const input_mode_e   *input_mode,
-                          const char *output_file, uint32_t *input_count,
+void handle_input_parsing(const cli_flags_t *cli_flags, uint32_t *input_count,
                           uint32_t *file_count, char **input,
                           file_entry_t **sorted_files) {
   // files is default
-  if (*input_mode == FILES || *input_mode == INPUT_MODE_E_NONE) {
+  if (cli_flags->input_mode == FILES ||
+      cli_flags->input_mode == INPUT_MODE_E_NONE) {
     *sorted_files =
-        (file_entry_t *)mallocv("sorted_files", *verbose_mode, *color_mode,
+        (file_entry_t *)mallocv(*cli_flags, "sorted_files",
                                 *input_count * sizeof(file_entry_t), -1);
     // parse files and sort them
-    printfv(*verbose_mode, *color_mode, "", "Handling parsing files\n");
-    handle_file_input_parsing(sorted_files, input, input_count, verbose_mode,
-                              color_mode);
+    printfv(*cli_flags, "", "Handling parsing files\n");
+    handle_file_input_parsing(cli_flags, sorted_files, input, input_count);
     *file_count = *input_count;
   } else {
     *sorted_files = NULL;
     *file_count   = 0;
-    printfv(*verbose_mode, *color_mode, "", "Handling parsing dirs\n");
-    handle_dir_input_parsing(sorted_files, input, input_count, file_count,
-                             verbose_mode, color_mode);
+    printfv(*cli_flags, "", "Handling parsing dirs\n");
+    handle_dir_input_parsing(cli_flags, sorted_files, input, input_count,
+                             file_count);
   }
 }

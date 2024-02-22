@@ -17,6 +17,23 @@ typedef enum {
   COLOR_ENABLED,
 } color_mode_e;
 
+typedef enum {
+  ROTATE_DISABLED,
+  ROTATE_ENABLED,
+} rotate_mode_e;
+
+typedef enum {
+  FLIP_DISABLED,
+  FLIP_ENABLED,
+} flip_mode_e;
+
+typedef enum {
+  DOUBLE_PAGE_FALSE,
+  DOUBLE_PAGE_TRUE,
+  DOUBLE_PAGE_FIRST,
+  DOUBLE_PAGE_SECOND,
+} double_page_mode_e;
+
 // colors
 #define RED         "\033[38;5;9m"
 #define BLUE        "\033[38;5;12m"
@@ -29,6 +46,13 @@ typedef enum {
 #define CBZ                      ".cbz"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define print_error_s(code, s)                                                 \
+  do {                                                                         \
+    fprintf(stderr, "Error: %s ", error_messages[code]);                       \
+    fprintf(stderr, "%s\n", s);                                                \
+    exit(code);                                                                \
+  } while (0)
 
 #define print_error(code)                                                      \
   do {                                                                         \
@@ -49,6 +73,8 @@ typedef enum {
         "  -d,  --dirs          List all dirs (cannot be used with --files)\n"                              \
         "  -o,  --output        Specify output file (default is combined.cbz)\n"                            \
         "  -c, --color          Specify output to use color\n"                                              \
+        "  -r, --rotate         If a page on its side it will rotate and resize it\n"                       \
+        "  -p, --flip           Flip the pages so they can be printed to view right to left\n"              \
         "\nBecause of how the cli is parsed color then verbose options should go first (for good logs)\n",  \
         argv[0]);                                                                                           \
   } while (0)
@@ -61,93 +87,109 @@ typedef enum {
     }                                                                          \
   } while (0)
 
-#define printfv(verbose_mode, color_mode, cc, ...)                             \
+#define printfv(cli_flags, cc, ...)                                            \
   do {                                                                         \
-    if (color_mode) {                                                          \
+    if ((cli_flags).color_mode) {                                              \
       printf("%s", cc);                                                        \
     }                                                                          \
-    if (verbose_mode == VERY_VERBOSE) {                                        \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
       printf("In function <%s> | ", __func__);                                 \
       printf(__VA_ARGS__);                                                     \
-    } else if (verbose_mode == VERBOSE) {                                      \
+    } else if ((cli_flags).verbose_mode == VERBOSE) {                          \
       printf(__VA_ARGS__);                                                     \
     }                                                                          \
-    if (color_mode) {                                                          \
+    if ((cli_flags).color_mode) {                                              \
       printf(RESET);                                                           \
     }                                                                          \
   } while (0)
 
-#define freev(verbose_mode, color_mode, ptr, ptr_name, index)                  \
+#define strncpyv(cli_flags, dest, src, n, dest_size)                           \
+  do {                                                                         \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
+      printfv(cli_flags, DARK_ORANGE, "Trying to copy string to %p\n",         \
+              (void *)dest);                                                   \
+    }                                                                          \
+    strncpy(dest, src, n);                                                     \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
+      if ((dest)[dest_size - 1] == '\0') {                                     \
+        printfv(cli_flags, DARK_GREEN, "Successfully copied string to %p\n",   \
+                (void *)dest);                                                 \
+      } else {                                                                 \
+        printfv(cli_flags, RED, "String copy to %p may be truncated\n",        \
+                (void *)dest);                                                 \
+      }                                                                        \
+    }                                                                          \
+    (dest)[dest_size - 1] = '\0';                                              \
+  } while (0)
+
+#define freev(cli_flags, ptr, ptr_name, index)                                 \
   do {                                                                         \
     if (ptr != NULL) {                                                         \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, DARK_ORANGE,                       \
-                  "Trying to free <%s[%d] (%p)>\n", ptr_name, index,           \
-                  (void *)ptr);                                                \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), DARK_ORANGE, "Trying to free <%s[%d] (%p)>\n",  \
+                  ptr_name, index, (void *)ptr);                               \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, DARK_ORANGE,                       \
-                  "Trying to free <%s (%p)>\n", ptr_name, (void *)ptr);        \
+          printfv((cli_flags), DARK_ORANGE, "Trying to free <%s (%p)>\n",      \
+                  ptr_name, (void *)ptr);                                      \
         }                                                                      \
       }                                                                        \
       free(ptr);                                                               \
       ptr = NULL;                                                              \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
-                  "Freed <%s[%d] (%p)>\n", ptr_name, index, (void *)ptr);      \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), DARK_GREEN, "Freed <%s[%d] (%p)>\n", ptr_name,  \
+                  index, (void *)ptr);                                         \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, DARK_GREEN, "Freed <%s (%p)>\n",   \
-                  ptr_name, (void *)ptr);                                      \
+          printfv((cli_flags), DARK_GREEN, "Freed <%s (%p)>\n", ptr_name,      \
+                  (void *)ptr);                                                \
         }                                                                      \
       }                                                                        \
-    } else if (verbose_mode == VERY_VERBOSE) {                                 \
-      if (index != -1) {                                                       \
-        printfv(verbose_mode, color_mode, RED,                                 \
-                "Could not free <%s[%d] (%p)> it is null\n", ptr_name, index,  \
-                (void *)ptr);                                                  \
+    } else if ((cli_flags).verbose_mode == VERY_VERBOSE) {                     \
+      if ((long)index != -1) {                                                 \
+        printfv((cli_flags), RED, "Could not free <%s[%d] (%p)> it is null\n", \
+                ptr_name, index, (void *)ptr);                                 \
       } else {                                                                 \
-        printfv(verbose_mode, color_mode, RED,                                 \
-                "Could not free <%s (%p)> it is null\n", ptr_name,             \
-                (void *)ptr);                                                  \
+        printfv((cli_flags), RED, "Could not free <%s (%p)> it is null\n",     \
+                ptr_name, (void *)ptr);                                        \
       }                                                                        \
     }                                                                          \
   } while (0)
 
-#define mallocv(ptr_name, verbose_mode, color_mode, size, index)               \
+#define mallocv(cli_flags, ptr_name, size, index)                              \
   ({                                                                           \
     void *ptr = malloc(size);                                                  \
-    if (verbose_mode == VERY_VERBOSE) {                                        \
-      if (index != -1) {                                                       \
-        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
+      if ((long)index != -1) {                                                 \
+        printfv((cli_flags), DARK_YELLOW,                                      \
                 "Attempting to allocate %zu bytes to <%s[%d] (%p)>\n", size,   \
                 ptr_name, index, ptr);                                         \
       } else {                                                                 \
-        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+        printfv((cli_flags), DARK_YELLOW,                                      \
                 "Attempting to allocate %zu bytes to <%s (%p)>\n", size,       \
                 ptr_name, ptr);                                                \
       }                                                                        \
     }                                                                          \
     if (ptr == NULL) {                                                         \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, RED,                               \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), RED,                                            \
                   "Failed to allocate %zu bytes to <%s[%d] (%p)>\n", size,     \
                   ptr_name, index, ptr);                                       \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, RED,                               \
+          printfv((cli_flags), RED,                                            \
                   "Failed to allocate %zu bytes to <%s (%p)>\n", size,         \
                   ptr_name, ptr);                                              \
         }                                                                      \
       }                                                                        \
     } else {                                                                   \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Allocated %zu bytes to <%s[%d] (%p)>\n", size, ptr_name,    \
                   index, ptr);                                                 \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Allocated %zu bytes to <%s (%p)>\n", size, ptr_name, ptr);  \
         }                                                                      \
       }                                                                        \
@@ -155,41 +197,41 @@ typedef enum {
     ptr;                                                                       \
   })
 
-#define callocv(ptr_name, verbose_mode, color_mode, size1, size2, index)       \
+#define callocv(cli_flags, ptr_name, size1, size2, index)                      \
   ({                                                                           \
     void  *ptr  = calloc(size1, size2);                                        \
     size_t size = size1 * size2;                                               \
-    if (verbose_mode == VERY_VERBOSE) {                                        \
-      if (index != -1) {                                                       \
-        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
+      if ((long)index != -1) {                                                 \
+        printfv((cli_flags), DARK_YELLOW,                                      \
                 "Attempting to allocate %zu bytes to <%s[%d] (%p)>\n", size,   \
                 ptr_name, index, ptr);                                         \
       } else {                                                                 \
-        printfv(verbose_mode, color_mode, DARK_YELLOW,                         \
+        printfv((cli_flags), DARK_YELLOW,                                      \
                 "Attempting to allocate %zu bytes to <%s (%p)>\n", size,       \
                 ptr_name, ptr);                                                \
       }                                                                        \
     }                                                                          \
     if (ptr == NULL) {                                                         \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, RED,                               \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), RED,                                            \
                   "Failed to allocate %zu bytes to <%s[%d] (%p)>\n", size,     \
                   ptr_name, index, ptr);                                       \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, RED,                               \
+          printfv((cli_flags), RED,                                            \
                   "Failed to allocate %zu bytes to <%s (%p)>\n", size,         \
                   ptr_name, ptr);                                              \
         }                                                                      \
       }                                                                        \
     } else {                                                                   \
-      if (verbose_mode == VERY_VERBOSE) {                                      \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Allocated %zu bytes to <%s[%d] (%p)>\n", size, ptr_name,    \
                   index, ptr);                                                 \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Allocated %zu bytes to <%s (%p)>\n", size, ptr_name, ptr);  \
         }                                                                      \
       }                                                                        \
@@ -197,46 +239,70 @@ typedef enum {
     ptr;                                                                       \
   })
 
-#define reallocv(verbose_mode, color_mode, ptr, ptr_name, size, index)         \
+#define reallocv(cli_flags, ptr, ptr_name, size, index)                        \
   ({                                                                           \
     void  *old_ptr  = (ptr);                                                   \
     size_t new_size = (size);                                                  \
     void  *new_ptr  = realloc(old_ptr, new_size);                              \
-    if (verbose_mode == VERY_VERBOSE) {                                        \
-      if (index != -1) {                                                       \
-        printfv(verbose_mode, color_mode, DARK_ORANGE,                         \
+    if ((cli_flags).verbose_mode == VERY_VERBOSE) {                            \
+      if ((long)index != -1) {                                                 \
+        printfv((cli_flags), DARK_ORANGE,                                      \
                 "Trying to reallocate <%s[%d] (%p)> to %zu bytes at (%p)\n",   \
                 ptr_name, index, old_ptr, new_size, new_ptr);                  \
       } else {                                                                 \
-        printfv(verbose_mode, color_mode, DARK_ORANGE,                         \
+        printfv((cli_flags), DARK_ORANGE,                                      \
                 "Trying to reallocate <%s (%p)> to %zu bytes at (%p)\n",       \
                 ptr_name, old_ptr, new_size, new_ptr);                         \
       }                                                                        \
       if (new_ptr == NULL) {                                                   \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, RED,                               \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), RED,                                            \
                   "Could not reallocate <%s[%d] (%p)> - keeping the old "      \
                   "pointer\n",                                                 \
                   ptr_name, index, old_ptr);                                   \
         } else {                                                               \
           printfv(                                                             \
-              verbose_mode, color_mode, RED,                                   \
+              (cli_flags), RED,                                                \
               "Could not reallocate <%s (%p)> - keeping the old pointer\n",    \
               ptr_name, old_ptr);                                              \
         }                                                                      \
       } else {                                                                 \
-        if (index != -1) {                                                     \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+        if ((long)index != -1) {                                               \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Reallocated <%s[%d] (%p)> to %zu bytes at (%p)\n",          \
                   ptr_name, index, old_ptr, new_size, new_ptr);                \
         } else {                                                               \
-          printfv(verbose_mode, color_mode, DARK_GREEN,                        \
+          printfv((cli_flags), DARK_GREEN,                                     \
                   "Reallocated <%s (%p)> to %zu bytes at (%p)\n", ptr_name,    \
                   old_ptr, new_size, new_ptr);                                 \
         }                                                                      \
       }                                                                        \
     }                                                                          \
     new_ptr ? new_ptr : old_ptr;                                               \
+  })
+
+#define memcpyv(cli_flags, dest, src, num, dest_size, dest_name)               \
+  ({                                                                           \
+    void       *d  = (dest);                                                   \
+    const void *s  = (src);                                                    \
+    size_t      n  = (num);                                                    \
+    size_t      ds = (dest_size);                                              \
+    if (ds < n) {                                                              \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        printfv((cli_flags), RED,                                              \
+                "Error: Destination buffer <%s (%p)> is too small for %zu "    \
+                "bytes.\n",                                                    \
+                dest_name, d, n);                                              \
+      }                                                                        \
+    } else {                                                                   \
+      memcpy(d, s, n);                                                         \
+      if ((cli_flags).verbose_mode == VERY_VERBOSE) {                          \
+        printfv((cli_flags), DARK_GREEN,                                       \
+                "Copied %zu bytes from (%p) to <%s (%p)>.\n", n, s, dest_name, \
+                d);                                                            \
+      }                                                                        \
+    }                                                                          \
+    d;                                                                         \
   })
 
 #endif // EXTRAS_H

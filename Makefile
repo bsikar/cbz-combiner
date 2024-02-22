@@ -4,8 +4,8 @@ LINKER = gcc
 NAME = cbz-combiner
 
 # Compiler flags
-DEBUG_CFLAGS = -std=c17 -g -Wall
-RELEASE_CFLAGS = -std=c17 -O2 -Wall
+DEBUG_CFLAGS = -std=c17 -g -Wall -Wextra
+RELEASE_CFLAGS = -std=c17 -O2 -Wall -Wextra
 CFLAGS = $(DEBUG_CFLAGS)
 
 # Linker flags
