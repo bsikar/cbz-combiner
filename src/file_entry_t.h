@@ -2,6 +2,7 @@
 #define FILE_ENTRY_T_H
 
 #include "cli.h"
+#include "extras.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -13,6 +14,7 @@ typedef struct {
 typedef struct {
   char              *cbz_path;
   char              *name;
+  char              *ext;
   uint32_t           width;
   uint32_t           height;
   uint32_t           id;

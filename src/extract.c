@@ -122,42 +122,27 @@ void _get_jpeg_dimensions_from_memory(const cli_flags_t   *cli_flags,
   jpeg_finish_decompress(&cinfo);
   jpeg_destroy_decompress(&cinfo);
 }
-bool _get_width_and_height(const cli_flags_t *cli_flags, uint32_t *width,
-                           uint32_t *height, char **ext,
-                           const unsigned char *contents, struct zip_stat *st) {
+bool _get_width_height_and_type(const cli_flags_t *cli_flags, uint32_t *width,
+                                uint32_t *height, char **ext,
+                                const unsigned char *contents,
+                                struct zip_stat     *st) {
   // Note: cannot use filetype variable since it might be named as a png
   // but be a jpg
   if (is_png((unsigned char *)contents, st->size)) {
     printfv(*cli_flags, DARK_YELLOW, "File is detected as a PNG\n");
     _get_png_dimensions_from_memory(cli_flags, (unsigned char *)contents,
                                     st->size, width, height);
-    *ext = ".png";
+    strncpy(*ext, ".png\0", 5);
     return true;
   }
   if (is_jpeg((unsigned char *)contents, st->size)) {
     printfv(*cli_flags, DARK_YELLOW, "File is detected as a JPEG\n");
     _get_jpeg_dimensions_from_memory(cli_flags, (unsigned char *)contents,
                                      st->size, width, height);
-    *ext = ".jpg";
+    strncpy(*ext, ".jpg\0", 5);
     return true;
   }
   return false;
-}
-
-bool _handle_dimensions(const cli_flags_t *cli_flags, uint32_t *width,
-                        uint32_t *height, const char *name,
-                        unsigned char *contents, char **ext,
-                        struct zip_stat *st) {
-  if (!_get_width_and_height(cli_flags, width, height, ext, contents, st)) {
-    printfv(*cli_flags, RED, "Unknown or unsupported file format <%s>\n", name);
-    return false;
-  }
-  if (width == 0 || height == 0) {
-    printfv(*cli_flags, RED, "Error file has width or height of 0 <%s>\n",
-            name);
-    return false;
-  }
-  return true;
 }
 
 void _find_rotated_and_double_pages(const cli_flags_t *cli_flags,
@@ -178,76 +163,28 @@ void _find_rotated_and_double_pages(const cli_flags_t *cli_flags,
   }
 }
 
-void _split_double_pages(const cli_flags_t *cli_flags,
-                         const uint32_t    *photo_count_before,
-                         const uint32_t *photo_counter, photo_t **photos) {
-  /// We will need to do the following:
-  /// - Iter until a double page is hit
-  /// - Cut the double page into 2 regular sized pages (1/2 of the double page)
-  /// - Save the new 2 pages as they should be:
-  ///    - if 34.png is a double page
-  ///    - then 34.png turns into:
-  ///    - 34.png and 35.png
-  /// - Calculate the shift needed for the rest of the following photos
-  /// - At first the shift is 1 since there is only 1 double page => 1 extra
-  ///   page
-  /// - If there are more double pages then the shift will increase by 1
-  ///
-  /// - Rename all following files after the double page(s) to reflect the
-  ///   proper name, that is now +shift away from their original value
-
-  uint32_t shift = 0;
-  // 1. iter until double page is hit
-  for (uint32_t i = 0; i < *photo_count_before; ++i) {
-    if ((*photos)[i].double_page == DOUBLE_PAGE_FALSE) {
-      continue;
-    }
-    // Hit!
-    photo_t *curr_photo      = &(*photos)[i];
-    photo_t *new_photo       = &(*photos)[*photo_count_before + shift];
-    (*photos)[i].double_page = DOUBLE_PAGE_FIRST;
-
-    new_photo->id          = curr_photo->id;
-    new_photo->width       = curr_photo->width;
-    new_photo->height      = curr_photo->height;
-    new_photo->on_its_side = false;
-    new_photo->double_page = DOUBLE_PAGE_SECOND;
-    // cbz_path
-    size_t len             = strlen(curr_photo->cbz_path) + 1;
-    new_photo->cbz_path =
-        (char *)mallocv(*cli_flags, "new_photo->cbz_path", len, -1);
-    strncpyv(*cli_flags, new_photo->cbz_path, curr_photo->cbz_path, len, len);
-    // name
-    len             = strlen(curr_photo->name) + 1;
-    new_photo->name = (char *)mallocv(*cli_flags, "new_photo->name", len, -1);
-    strncpyv(*cli_flags, new_photo->name, curr_photo->name, len, len);
-
-    shift += 1;
-  }
-}
-
 void _handle_cbz_entry(const cli_flags_t *cli_flags, const char *cbz_path,
                        uint32_t *photo_counter, photo_t **photos,
                        uint32_t *photos_arr_len) {
   // Open the zip file
   int    err;
-  zip_t *z = zip_open(cbz_path, 0, &err);
-  if (!z) {
+  zip_t *dest = zip_open(cbz_path, 0, &err);
+  if (!dest) {
     fprintf(stderr, "Failed to open CBZ file: %s\n", cbz_path);
     return;
   }
 
   // Get the number of entries in the zip file
-  zip_int64_t num_entries = zip_get_num_entries(z, 0);
+  zip_int64_t num_entries = zip_get_num_entries(dest, 0);
 
   for (zip_uint64_t i = 0; i < num_entries; i++) {
     // Get file stat for entry
     struct zip_stat st;
     zip_stat_init(&st);
-    zip_stat_index(z, i, 0, &st);
+    zip_stat_index(dest, i, 0, &st);
 
     // Extract file into memory
-    zip_file_t *zf = zip_fopen_index(z, i, 0);
+    zip_file_t *zf = zip_fopen_index(dest, i, 0);
     if (!zf) {
       continue; // Skip if cannot open file
     }
@@ -263,9 +200,10 @@ void _handle_cbz_entry(const cli_flags_t *cli_flags, const char *cbz_path,
 
     // Use contents to get width and height
     uint32_t width, height;
-    char    *ext;
-    if (_get_width_and_height(cli_flags, &width, &height, &ext, contents,
-                              &st)) {
+    char    *ext = mallocv(*cli_flags, "ext", sizeof(char) * 5, -1);
+    strncpy(ext, "\0\0\0\0\0", 5);
+    if (_get_width_height_and_type(cli_flags, &width, &height, &ext, contents,
+                                   &st)) {
       // Check if we need to resize the photos array
       if (*photo_counter >= *photos_arr_len) {
         *photos_arr_len *= 2; // Double the size
@@ -282,23 +220,22 @@ void _handle_cbz_entry(const cli_flags_t *cli_flags, const char *cbz_path,
       photo_t *photo     = &(*photos)[*photo_counter];
       photo->cbz_path    = strdup(cbz_path);
       photo->name        = strdup(st.name);
+      photo->ext         = strdup(ext);
       photo->width       = width;
       photo->height      = height;
       photo->id          = *photo_counter;
-      // Determine if the photo is on its side or a double page based on
-      // dimensions
-      photo->on_its_side = false; // This would be determined by some logic
-      photo->double_page =
-          DOUBLE_PAGE_FALSE; // Similarly, determine based on width and height
+      photo->on_its_side = false;
+      photo->double_page = DOUBLE_PAGE_FALSE;
 
       (*photo_counter)++;
     }
 
     free(contents);
+    free(ext);
     zip_fclose(zf);
   }
 
-  zip_close(z);
+  zip_close(dest);
 }
 
 void adjust_for_double_pages(photo_t **photos, uint32_t *photo_count) {
@@ -337,6 +274,226 @@ void adjust_for_double_pages(photo_t **photos, uint32_t *photo_count) {
   }
 }
 
+void decode_jpeg(uint8_t *input_buffer, size_t input_size,
+                 struct jpeg_decompress_struct *cinfo, JSAMPARRAY *pixel_data) {
+  struct jpeg_error_mgr jerr;
+
+  // Setup error handling
+  cinfo->err = jpeg_std_error(&jerr);
+
+  // Initialize JPEG decompression object and specify data source
+  jpeg_create_decompress(cinfo);
+  jpeg_mem_src(cinfo, input_buffer, input_size);
+
+  // Read header and start decompression
+  jpeg_read_header(cinfo, TRUE);
+  jpeg_start_decompress(cinfo);
+
+  // Allocate memory for one scanline
+  *pixel_data = (*cinfo->mem->alloc_sarray)(
+      (j_common_ptr)cinfo, JPOOL_IMAGE,
+      cinfo->output_width * cinfo->output_components, 1);
+
+  // Read scanlines
+  while (cinfo->output_scanline < cinfo->output_height) {
+    jpeg_read_scanlines(cinfo, *pixel_data + cinfo->output_scanline,
+                        cinfo->output_height - cinfo->output_scanline);
+  }
+}
+
+void write_half_jpeg(struct jpeg_decompress_struct *cinfo,
+                     JSAMPARRAY pixel_data, int start_col, int width,
+                     const char *filename) {
+  struct jpeg_compress_struct cinfo_out;
+  struct jpeg_error_mgr       jerr_out;
+  FILE                       *outfile;
+  JSAMPARRAY row_pointer = (JSAMPARRAY)malloc(sizeof(JSAMPROW));
+
+  cinfo_out.err = jpeg_std_error(&jerr_out);
+  jpeg_create_compress(&cinfo_out);
+
+  if ((outfile = fopen(filename, "wb")) == NULL) {
+    fprintf(stderr, "can't open %s\n", filename);
+    exit(1);
+  }
+
+  jpeg_stdio_dest(&cinfo_out, outfile);
+
+  cinfo_out.image_width      = width;
+  cinfo_out.image_height     = cinfo->output_height;
+  cinfo_out.input_components = cinfo->output_components;
+  cinfo_out.in_color_space   = cinfo->out_color_space;
+
+  jpeg_set_defaults(&cinfo_out);
+  jpeg_start_compress(&cinfo_out, TRUE);
+
+  while (cinfo_out.next_scanline < cinfo_out.image_height) {
+    row_pointer[0] = &pixel_data[cinfo_out.next_scanline]
+                                [start_col * cinfo->output_components];
+    jpeg_write_scanlines(&cinfo_out, row_pointer, 1);
+  }
+
+  jpeg_finish_compress(&cinfo_out);
+  fclose(outfile);
+  jpeg_destroy_compress(&cinfo_out);
+  free(row_pointer);
+}
+
+void split_and_save(uint8_t *jpeg_buffer, size_t jpeg_size) {
+  struct jpeg_decompress_struct cinfo;
+  JSAMPARRAY                    pixel_data;
+
+  // Decode JPEG to raw image
+  decode_jpeg(jpeg_buffer, jpeg_size, &cinfo, &pixel_data);
+
+  // Assuming the image is 2000x500, resize to 1000x500 and split
+  int new_width = cinfo.output_width / 2;
+
+  // Write left half
+  write_half_jpeg(&cinfo, pixel_data, 0, new_width, "left.jpeg");
+
+  // Write right half
+  write_half_jpeg(&cinfo, pixel_data, new_width, new_width, "right.jpeg");
+
+  // Cleanup
+  jpeg_finish_decompress(&cinfo);
+  jpeg_destroy_decompress(&cinfo);
+  free(pixel_data);
+}
+
+void make_output_cbz(const cli_flags_t *cli_flags, photo_t *photos,
+                     uint32_t photo_count, const char *output_file) {
+  int    err;
+  zip_t *dest_zip = zip_open(output_file, ZIP_CREATE | ZIP_TRUNCATE, &err);
+
+  if (!dest_zip) {
+    fprintf(stderr, "Failed to open destination zip file: %s\n",
+            zip_strerror(dest_zip));
+    return;
+  }
+
+  for (uint32_t i = 0; i < photo_count; i++) {
+    // Open the source zip archive
+    int    src_err;
+    zip_t *src_zip = zip_open(photos[i].cbz_path, 0, &src_err);
+    if (!src_zip) {
+      fprintf(stderr, "Failed to open source zip file: %s\n",
+              zip_strerror(src_zip));
+      continue;
+    }
+
+    // Find the index of the PNG file within the source zip
+    zip_int64_t idx = zip_name_locate(src_zip, photos[i].name, 0);
+    if (idx < 0) {
+      fprintf(stderr, "File %s not found in source zip archive\n",
+              photos[i].name);
+      zip_close(src_zip);
+      continue;
+    }
+
+    // Extract the PNG file from the source zip
+    zip_file_t *zfile = zip_fopen_index(
+        src_zip, idx,
+        0); // this is the raw data for the png, this will be stored in a buffer
+    if (!zfile) {
+      fprintf(stderr, "Error opening file %s within source zip archive\n",
+              photos[i].name);
+      zip_close(src_zip);
+      continue;
+    }
+
+    zip_stat_t zstat;
+    zip_stat_index(src_zip, idx, 0, &zstat);
+    uint8_t *buffer = malloc(zstat.size);
+    if (buffer == NULL) {
+      fprintf(stderr, "Memory allocation error\n");
+      zip_fclose(zfile);
+      zip_close(src_zip);
+      continue;
+    }
+
+    zip_int64_t bytes_read = zip_fread(zfile, buffer, zstat.size);
+    if (bytes_read < 0) {
+      fprintf(stderr, "Error reading file %s within source zip archive\n",
+              photos[i].name);
+      free(buffer);
+      zip_fclose(zfile);
+      zip_close(src_zip);
+      continue;
+    }
+
+    if (photos[i].ext[0] == '\0') {
+      fprintf(stderr, "Error file has unkown type : %s\n", photos[i].name);
+    }
+
+    // Create a new source from buffer to add to the destination zip
+    char new_filename[256]; // Ensure this buffer is large enough for the
+                            // resulting filename
+    snprintf(new_filename, sizeof(new_filename), "%d%s", photos[i].id,
+             photos[i].ext);
+    zip_source_t *source = zip_source_buffer(dest_zip, buffer, zstat.size, 1);
+    if (!source) {
+      fprintf(stderr, "Error creating zip source from buffer\n");
+      free(buffer);
+      zip_fclose(zfile);
+      zip_close(src_zip);
+      continue;
+    }
+
+    // DOUBLE PAGE LOGIC
+    if (photos[i].double_page == DOUBLE_PAGE_FALSE) {
+      continue; // XXX REMOVE ME
+      // Add the image file to the destination zip archive
+      if (zip_file_add(dest_zip, new_filename, source, ZIP_FL_OVERWRITE) < 0) {
+        fprintf(stderr, "Error adding file %s to destination zip archive: %s\n",
+                photos[i].name, zip_strerror(dest_zip));
+        zip_source_free(source);
+        zip_fclose(zfile);
+        zip_close(src_zip);
+        continue;
+      }
+
+      // Clean up
+      zip_fclose(zfile);
+      zip_close(src_zip);
+      continue;
+    }
+
+    // The RAW data is in `buffer`
+
+    /// save left and right
+    split_and_save(buffer, zstat.size);
+
+    if (photos[i].double_page == DOUBLE_PAGE_FIRST) {
+      if (strcmp(photos[i].ext, ".png") == 0) {
+        // TODO - do this later
+      } else if (strcmp(photos[i].ext, ".jpg") == 0) {
+      } else {
+        fprintf(stderr, "Error: Unkonwn file extension %s\n", photos[i].ext);
+      }
+      continue;
+    }
+
+    if (photos[i].double_page == DOUBLE_PAGE_SECOND) {
+      if (strcmp(photos[i].ext, ".png") == 0) {
+        // TODO - do this later
+      } else if (strcmp(photos[i].ext, ".jpg") == 0) {
+        // XXX: TODO
+      } else {
+        fprintf(stderr, "Error: Unkonwn file extension %s\n", photos[i].ext);
+      }
+    } else {
+      fprintf(stderr, "Error: Page is double, but not first nor second: %s\n",
+              photos[i].name);
+    }
+  }
+
+  if (zip_close(dest_zip) < 0) {
+    fprintf(stderr, "Failed to close destination zip archive: %s\n",
+            zip_strerror(dest_zip));
+  }
+}
+
 void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
                              const file_entry_t **sorted_files,
                              const char          *output_file,
@@ -354,8 +511,15 @@ void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
                       &photos, &photos_arr_len);
   }
   adjust_for_double_pages(&photos, &photo_counter);
+  for (uint32_t i = 0; i < photo_counter; i++) {
+    printfv(*cli_flags, "",
+            "cbz_path: %s | id: %u | name: %s | width: %u | height: %u | "
+            "double_page: %u | on_its_side: %u\n",
+            photos[i].cbz_path, photos[i].id, photos[i].name, photos[i].width,
+            photos[i].height, photos[i].double_page, photos[i].on_its_side);
+  }
+  make_output_cbz(cli_flags, photos, photo_counter, output_file);
 
-  // Print photo information (for demonstration)
   for (uint32_t i = 0; i < photo_counter; i++) {
     free(photos[i].cbz_path);
     free(photos[i].name);
