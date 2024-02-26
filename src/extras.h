@@ -30,8 +30,8 @@ typedef enum {
 typedef enum {
   DOUBLE_PAGE_FALSE,
   DOUBLE_PAGE_TRUE,
-  DOUBLE_PAGE_FIRST,
-  DOUBLE_PAGE_SECOND,
+  DOUBLE_PAGE_LEFT,
+  DOUBLE_PAGE_RIGHT,
 } double_page_mode_e;
 
 // colors

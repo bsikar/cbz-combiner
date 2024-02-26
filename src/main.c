@@ -97,9 +97,8 @@ void handle_input_parsing(const cli_flags_t *cli_flags, uint32_t *input_count,
   // files is default
   if (cli_flags->input_mode == FILES ||
       cli_flags->input_mode == INPUT_MODE_E_NONE) {
-    *sorted_files =
-        (file_entry_t *)mallocv(*cli_flags, "sorted_files",
-                                *input_count * sizeof(file_entry_t), -1);
+    *sorted_files = (file_entry_t *)mallocv(
+        *cli_flags, "sorted_files", *input_count * sizeof(file_entry_t), -1);
     // parse files and sort them
     printfv(*cli_flags, "", "Handling parsing files\n");
     handle_file_input_parsing(cli_flags, sorted_files, input, input_count);
