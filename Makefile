@@ -9,7 +9,7 @@ RELEASE_CFLAGS = -std=c17 -O2 -Wall   -Wunused-function
 CFLAGS = $(DEBUG_CFLAGS)
 
 # Linker flags
-LFLAGS = -lzip -lpng -ljpeg
+LFLAGS = -lzip -lpng -ljpeg -lhpdf -lm
 
 # Directories
 SRC_DIR = src

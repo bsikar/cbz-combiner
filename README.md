@@ -1,6 +1,22 @@
+Combine Manga in .cbz format
+
+the current use case is to combine manga (or other cbz's) that follow this format:
+
+```
+'[0001]_Chapter_1_Normanni.cbz'
+'[0002]_Chapter_2_Somewhere_Not_Here.cbz'
+'[0003]_Chapter_3_The_End_Beyond_The_Sea.cbz'
+'[0004]_Chapter_4_Unbroken_Chains.cbz'
+'[0005]_Chapter_5_Troll.cbz'
+'[0006]_Chapter_6_Messenger_From_The_Battlefield.cbz'
+```
+
+the program looks for the `[0001]`, `[0002]`, etc and will combine them in order like that. This means if you put two different `[0001]` or even `[1]` and `[001]` the second one will override the first 
+
+
 ```
 sudo apt update
-sudo apt install libzip-dev bear libpng-dev libjpeg-dev
+sudo apt install libzip-dev bear libpng-dev libjpeg-dev libhpdf-dev
 bear -- make
 
 # good command to find all leaks
@@ -42,12 +58,14 @@ Restart and take even smaller steps, with leak checks in between every one of th
 | step      | s          | Executes the current line of code and stops at the first instruction of the next line. Steps into function calls if present. |
 | stepi     | si         | Similar to `step`, but operates at the assembly instruction level. Steps into the next assembly instruction. |
 
-press <C-x> o to switch to other screen in gdb after running `tui enable` 
+
+
+press \<C-x\> o to switch to other screen in gdb after running `tui enable` 
 
 in the tui:
 
 layout asm
-and you can do <C-x> NUMBER so <C-x> 2
+and you can do \<C-x\> NUMBER so \<C-x\> 2
 
 
 

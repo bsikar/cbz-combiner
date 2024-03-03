@@ -20,5 +20,4 @@
           -> some manga have panels stretch across and the images are 2 in 1
           -> so make [X|Y] into [X] and [Y]
           -> this can be done with libpng, but jpegs != png
-        - optimize: make multithreaded
  
