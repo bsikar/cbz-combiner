@@ -551,8 +551,9 @@ static void _reorder_double_page_photos(const cli_flags_t *cli_flags,
                                         photo_t          **photos,
                                         uint32_t          *photo_counter) {
   for (uint32_t i = 0; i < *photo_counter; i++) {
-    if ((*photos)[i].double_page == DOUBLE_PAGE_FALSE)
+    if ((*photos)[i].double_page == DOUBLE_PAGE_FALSE) {
       continue;
+    }
     if ((*photos)[i].double_page == DOUBLE_PAGE_TRUE) {
       *photos = realloc(*photos, sizeof(photo_t) * (*photo_counter + 1));
       for (uint32_t j = *photo_counter; j > i + 1; j--) {
@@ -592,44 +593,43 @@ static void _make_output_pdf(const cli_flags_t *cli_flags,
                              const char        *output_file) {
   HPDF_Doc pdf = HPDF_New(_pdf_error_handler, NULL);
   if (!pdf) {
-    printfv(*cli_flags, RED, "Failed to open destination pdf file\n");
+    printfv(*cli_flags, "RED", "Failed to open destination pdf file\n");
     return;
   }
 
-  // TODO:
-  for (uint32_t i = 0; i < *pdf_photos_count; i++) {
-    photo_t    *photo1   = (*pdf_photos)[i].photo1;
-    photo_t    *photo2   = (*pdf_photos)[i].photo2;
+  uint32_t n = *pdf_photos_count;
+  uint32_t booklet_pairs =
+      (n + n % 4) / 2; // Ensuring a complete booklet by rounding up
+
+  for (uint32_t i = 0; i < booklet_pairs; i++) {
+    uint32_t index1 = (i % 2 == 0) ? i / 2 : n - 1 - (i / 2);
+    uint32_t index2 = n - 1 - index1;
+
+    photo_t *photo1 = (*pdf_photos)[index1].photo1;
+    photo_t *photo2 =
+        (index2 < n && index2 != index1) ? (*pdf_photos)[index2].photo2 : NULL;
     zip_t      *src_zip1 = NULL, *src_zip2 = NULL;
     zip_int64_t idx1 = -1, idx2 = -1;
-    // it is okay for photo1 or photo2 to be null, make sure to check for null
-    if (photo1) {
-      if ((*photo1).ext[0] == '\0') {
-        printfv(*cli_flags, RED, "File has unknown type: %s\n", (*photo1).name);
+
+    if (photo1 && photo1->ext[0] != '\0') {
+      if (!_open_source_zip_archive(cli_flags, photo1->cbz_path, &src_zip1)) {
         continue;
       }
-      if (!_open_source_zip_archive(cli_flags, (*photo1).cbz_path, &src_zip1)) {
-        continue;
-      }
-      if (!_get_photo_index_from_source_zip(cli_flags, src_zip1, (*photo1).name,
+      if (!_get_photo_index_from_source_zip(cli_flags, src_zip1, photo1->name,
                                             &idx1)) {
         zip_close(src_zip1);
         continue;
       }
     }
 
-    if (photo2) {
-      if ((*photo2).ext[0] == '\0') {
-        printfv(*cli_flags, RED, "File has unknown type: %s\n", (*photo2).name);
+    if (photo2 && photo2->ext[0] != '\0') {
+      if (!_open_source_zip_archive(cli_flags, photo2->cbz_path, &src_zip2)) {
         continue;
       }
-      if (!_open_source_zip_archive(cli_flags, (*photo2).cbz_path, &src_zip2)) {
-        continue;
-      }
-      if (!_get_photo_index_from_source_zip(cli_flags, src_zip2, (*photo2).name,
+      if (!_get_photo_index_from_source_zip(cli_flags, src_zip2, photo2->name,
                                             &idx2)) {
         zip_close(src_zip2);
-        if (photo1) {
+        if (src_zip1) {
           zip_close(src_zip1);
         }
         continue;
@@ -638,22 +638,23 @@ static void _make_output_pdf(const cli_flags_t *cli_flags,
 
     if (!_handle_pdf_buffer(cli_flags, src_zip1, src_zip2, &pdf, idx1, idx2,
                             photo1, photo2)) {
-      if (photo1) {
+      if (src_zip1) {
         zip_close(src_zip1);
       }
-      if (photo2) {
+      if (src_zip2) {
         zip_close(src_zip2);
       }
       continue;
     }
 
-    if (photo1) {
+    if (src_zip1) {
       zip_close(src_zip1);
     }
-    if (photo2) {
+    if (src_zip2) {
       zip_close(src_zip2);
     }
   }
+
   HPDF_SaveToFile(pdf, output_file);
   HPDF_Free(pdf);
 }
@@ -662,7 +663,6 @@ static void _reorder_pages_for_pdf(const cli_flags_t *cli_flags,
                                    photo_t *photos, uint32_t photo_counter,
                                    pdf_photo_t **pdf_photos,
                                    uint32_t     *pdf_photos_counter) {
-  // TODO: Mix up the order like how booklets should be (from right to left)
   *pdf_photos_counter = 0;
   *pdf_photos         = (pdf_photo_t *)mallocv(*cli_flags, "pdf_photos",
                                                sizeof(pdf_photo_t) * photo_counter, -1);
