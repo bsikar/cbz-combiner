@@ -22,6 +22,11 @@ typedef struct {
   double_page_mode_e double_page;
 } photo_t;
 
+typedef struct {
+  photo_t *photo1;
+  photo_t *photo2;
+} pdf_photo_t;
+
 /**
  * Compares two file_entry_t instances
  *
