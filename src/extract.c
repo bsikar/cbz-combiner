@@ -15,6 +15,58 @@
 #include <zip.h>
 #include <zipconf.h>
 
+#define REORDER_TO_HUMAN_READABLE(input, output_human, output_human_len,       \
+                                  INPUT_SIZE)                                  \
+  uint32_t start_index = 0;                                                    \
+  /* Check first */                                                            \
+  if (input[0].double_page == DOUBLE_PAGE_FALSE) {                             \
+    output_human[output_human_len++] = &input[0];                              \
+    start_index                      = output_human_len;                       \
+  } else if (input[0].double_page == DOUBLE_PAGE_LEFT) {                       \
+    output_human[output_human_len++] = NULL;                                   \
+    output_human[output_human_len++] = &input[1];                              \
+    output_human[output_human_len++] =                                         \
+        &input[0]; /* has to be L, we are ensured */                           \
+    start_index = output_human_len - 1;                                        \
+  }                                                                            \
+                                                                               \
+  for (uint32_t i = start_index; i < INPUT_SIZE; ++i) {                        \
+    photo_t p             = input[i];                                          \
+    bool    on_right_page = (output_human_len - 1) % 2 == 0;                   \
+    if (p.double_page == DOUBLE_PAGE_FALSE) {                                  \
+      if (on_right_page && i < INPUT_SIZE - 1 &&                               \
+          (input[i + 1].double_page != DOUBLE_PAGE_FALSE)) {                   \
+        output_human[output_human_len++] = NULL;                               \
+      }                                                                        \
+      output_human[output_human_len++] = &input[i];                            \
+    } else {                                                                   \
+      if (!on_right_page) { /* on left page_t */                               \
+        output_human[output_human_len++] = NULL;                               \
+      }                                                                        \
+      /* we are ensured that this will be in bounds since L then R */          \
+      output_human[output_human_len++] = &input[i + 1]; /* Add Right first */  \
+      output_human[output_human_len++] =                                       \
+          &input[i++]; /* Add Left second, inc to skip right */                \
+    }                                                                          \
+  }                                                                            \
+  while (output_human_len % 4 != 0) {                                          \
+    output_human[output_human_len++] = NULL;                                   \
+  }
+
+#define REORDER_HUMAN_TO_OUTPUT(output_human, output_human_len, output)        \
+  uint32_t output_len = 0;                                                     \
+  for (uint32_t i = 0, j = output_human_len - 1; i < j; ++i, --j) {            \
+    bool     on_front_side = (i % 2) != 0;                                     \
+    uint32_t idx1 = i, idx2 = j;                                               \
+                                                                               \
+    if (on_front_side) {                                                       \
+      idx1 = j;                                                                \
+      idx2 = i;                                                                \
+    }                                                                          \
+    output[output_len++] = output_human[idx1];                                 \
+    output[output_len++] = output_human[idx2];                                 \
+  }
+
 /// the file names must follow [<number>]_<name>.cbz
 /// patern will get the <number> portion
 int32_t extract_file_name_number(const cli_flags_t *cli_flags,
@@ -113,11 +165,13 @@ static bool _get_width_height_and_type(const cli_flags_t *cli_flags,
   // Note: cannot use filetype variable since it might be named as a png
   // but be a jpeg
   if (is_png((unsigned char *)contents, st->size)) {
-    printfv(*cli_flags, DARK_YELLOW, "File is detected as a PNG\n");
+    printfv(*cli_flags, RED,
+            "File is detected as a PNG\n"); // TODO: Change from RED when this
+                                            // is supported
     _get_png_dimensions_from_memory(cli_flags, (uint8_t *)contents, st->size,
                                     width, height);
     strncpyv(*cli_flags, *ext, ".png\0", 5, 5);
-    return true;
+    return false; // TODO: Chnage to true when this is supported
   }
   if (is_jpeg((unsigned char *)contents, st->size)) {
     printfv(*cli_flags, DARK_YELLOW, "File is detected as a JPEG\n");
@@ -185,14 +239,13 @@ static void _handle_cbz_entry(const cli_flags_t *cli_flags,
       }
 
       // Update the photos array
-      photo_t *photo     = &(*photos)[*photo_counter];
-      photo->cbz_path    = strdup(cbz_path);
-      photo->name        = strdup(st.name);
-      photo->ext         = strdup(ext);
-      photo->width       = width;
-      photo->height      = height;
-      photo->id          = *photo_counter;
-      photo->on_its_side = false;
+      photo_t *photo  = &(*photos)[*photo_counter];
+      photo->cbz_path = strdup(cbz_path);
+      photo->name     = strdup(st.name);
+      photo->ext      = strdup(ext);
+      photo->width    = width;
+      photo->height   = height;
+      photo->id       = *photo_counter;
       photo->double_page =
           (width > height) ? DOUBLE_PAGE_TRUE : DOUBLE_PAGE_FALSE;
 
@@ -295,6 +348,7 @@ static void _split_jpeg_buffer(const cli_flags_t *cli_flags, photo_t photo,
 
   jpeg_set_defaults(&cinfo_compress);
   jpeg_set_quality(&cinfo_compress, 100, TRUE);
+  // XXX: HERE
   jpeg_start_compress(&cinfo_compress, TRUE);
 
   while (cinfo_compress.next_scanline < cinfo_compress.image_height) {
@@ -497,8 +551,8 @@ static bool _handle_zip_buffer(const cli_flags_t *cli_flags, zip_t *src_zip,
   return true;
 }
 
-static void _make_output_cbz(const cli_flags_t *cli_flags, photo_t **photos,
-                             uint32_t *photo_count, const char *output_file) {
+static void _make_output_cbz(const cli_flags_t *cli_flags, photo_t *photos,
+                             uint32_t photo_count, const char *output_file) {
   zip_t *dest_zip = zip_open(output_file, ZIP_CREATE | ZIP_TRUNCATE, NULL);
   if (!dest_zip) {
     printfv(*cli_flags, RED, "Failed to open destination zip file: %s\n",
@@ -506,26 +560,25 @@ static void _make_output_cbz(const cli_flags_t *cli_flags, photo_t **photos,
     return;
   }
 
-  for (uint32_t i = 0; i < *photo_count; i++) {
-    if ((*photos)[i].ext[0] == '\0') {
-      printfv(*cli_flags, RED, "File has unknown type: %s\n",
-              (*photos)[i].name);
+  for (uint32_t i = 0; i < photo_count; i++) {
+    if (photos[i].ext[0] == '\0') {
+      printfv(*cli_flags, RED, "File has unknown type: %s\n", photos[i].name);
       continue;
     }
     zip_t *src_zip = NULL;
-    if (!_open_source_zip_archive(cli_flags, (*photos)[i].cbz_path, &src_zip)) {
+    if (!_open_source_zip_archive(cli_flags, photos[i].cbz_path, &src_zip)) {
       continue;
     }
 
     zip_int64_t idx;
-    if (!_get_photo_index_from_source_zip(cli_flags, src_zip, (*photos)[i].name,
+    if (!_get_photo_index_from_source_zip(cli_flags, src_zip, photos[i].name,
                                           &idx)) {
       zip_close(src_zip);
       continue;
     }
 
-    if (!_handle_zip_buffer(cli_flags, src_zip, &dest_zip, (*photos)[i].name,
-                            idx, (*photos)[i])) {
+    if (!_handle_zip_buffer(cli_flags, src_zip, &dest_zip, photos[i].name, idx,
+                            photos[i])) {
       zip_close(src_zip);
       continue;
     }
@@ -542,7 +595,6 @@ static photo_t _deep_copy_photo(const photo_t *src) {
   copy.width       = src->width;
   copy.height      = src->height;
   copy.id          = src->id;
-  copy.on_its_side = src->on_its_side;
   copy.double_page = src->double_page;
   return copy;
 }
@@ -587,29 +639,36 @@ static bool _str_ends_with(const char *str, const char *suffix) {
   return strcmp(start_pos, suffix) == 0;
 }
 
-static void _make_output_pdf(const cli_flags_t *cli_flags,
-                             pdf_photo_t      **pdf_photos,
-                             uint32_t          *pdf_photos_count,
-                             const char        *output_file) {
+static void _make_output_pdf(const cli_flags_t *cli_flags, photo_t *photos,
+                             uint32_t photos_count, const char *output_file) {
+  /* INIT */
   HPDF_Doc pdf = HPDF_New(_pdf_error_handler, NULL);
   if (!pdf) {
     printfv(*cli_flags, "RED", "Failed to open destination pdf file\n");
     return;
   }
 
-  uint32_t n = *pdf_photos_count;
-  uint32_t booklet_pairs =
-      (n + n % 4) / 2; // Ensuring a complete booklet by rounding up
+  /* REORDER */
+  uint32_t  output_human_len = 0;
+  photo_t **output_human     = (photo_t **)mallocv(
+      *cli_flags, "output_human", sizeof(photo_t) * photos_count, -1);
 
-  for (uint32_t i = 0; i < booklet_pairs; i++) {
-    uint32_t index1 = (i % 2 == 0) ? i / 2 : n - 1 - (i / 2);
-    uint32_t index2 = n - 1 - index1;
+  REORDER_TO_HUMAN_READABLE(photos, output_human, output_human_len,
+                            photos_count);
+  photo_t **output = (photo_t **)mallocv(
+      *cli_flags, "output", sizeof(photo_t) * output_human_len, -1);
+  REORDER_HUMAN_TO_OUTPUT(output_human, output_human_len, output);
 
-    photo_t *photo1 = (*pdf_photos)[index1].photo1;
-    photo_t *photo2 =
-        (index2 < n && index2 != index1) ? (*pdf_photos)[index2].photo2 : NULL;
+  /* WRITE IMAGES */
+  for (uint32_t i = 0, j = 1; j < output_human_len;) {
+    photo_t *photo1 = output[i];
+    photo_t *photo2 = output[j];
+
     zip_t      *src_zip1 = NULL, *src_zip2 = NULL;
     zip_int64_t idx1 = -1, idx2 = -1;
+
+    i += 2;
+    j += 2;
 
     if (photo1 && photo1->ext[0] != '\0') {
       if (!_open_source_zip_archive(cli_flags, photo1->cbz_path, &src_zip1)) {
@@ -655,46 +714,9 @@ static void _make_output_pdf(const cli_flags_t *cli_flags,
     }
   }
 
+  /* SAVE AND FREE */
   HPDF_SaveToFile(pdf, output_file);
   HPDF_Free(pdf);
-}
-
-static void _reorder_pages_for_pdf(const cli_flags_t *cli_flags,
-                                   photo_t *photos, uint32_t photo_counter,
-                                   pdf_photo_t **pdf_photos,
-                                   uint32_t     *pdf_photos_counter) {
-  *pdf_photos_counter = 0;
-  *pdf_photos         = (pdf_photo_t *)mallocv(*cli_flags, "pdf_photos",
-                                               sizeof(pdf_photo_t) * photo_counter, -1);
-
-  for (uint32_t i = 0, j = 0; i < photo_counter; i++, j++) {
-    if (j == 0) {
-      (*pdf_photos)[*pdf_photos_counter].photo1 = &(photos[i]);
-      continue;
-    }
-
-    if (j % 2 != 0) { // not 1st page
-      if (photos[i].double_page == DOUBLE_PAGE_LEFT) {
-        // skip
-        (*pdf_photos)[*pdf_photos_counter].photo2     = NULL;
-        (*pdf_photos)[++(*pdf_photos_counter)].photo1 = &(photos[i]);
-        if (i + 1 < photo_counter) {
-          (*pdf_photos)[(*pdf_photos_counter)++].photo2 = &(photos[1 + i++]);
-        }
-        continue;
-      }
-      (*pdf_photos)[*pdf_photos_counter].photo2 = &(photos[i]);
-      (*pdf_photos_counter)++;
-    } else {
-      (*pdf_photos)[*pdf_photos_counter].photo1 = &(photos[i]);
-    }
-  }
-  if (photo_counter == 0) {
-    (*pdf_photos_counter)++;
-  }
-  *pdf_photos =
-      (pdf_photo_t *)reallocv(*cli_flags, *pdf_photos, "pdf_photos",
-                              *pdf_photos_counter * sizeof(pdf_photo_t), -1);
 }
 
 void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
@@ -716,54 +738,15 @@ void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
   }
   // at this point we dont care about photos_arr_len
   // only photo_counter will be used
-  photos                  = (photo_t *)reallocv(*cli_flags, photos, "photos",
-                                                sizeof(photo_t) * photo_counter, -1);
-  pdf_photo_t *pdf_photos = NULL;
-  uint32_t     pdf_photos_counter = 0;
+  photos = (photo_t *)reallocv(*cli_flags, photos, "photos",
+                               sizeof(photo_t) * photo_counter, -1);
   // increase since and rename for double photos being left and right
   _reorder_double_page_photos(cli_flags, &photos, &photo_counter);
-  if (_str_ends_with(output_file, ".pdf")) {
-    _reorder_pages_for_pdf(cli_flags, photos, photo_counter, &pdf_photos,
-                           &pdf_photos_counter);
-
-    for (uint32_t i = 0; i < pdf_photos_counter; i++) {
-      photo_t *photo1 = pdf_photos[i].photo1;
-      photo_t *photo2 = pdf_photos[i].photo2;
-      printfv(*cli_flags, "", "%p %p\n", photo1, photo2);
-      if (!photo1) {
-        printfv(*cli_flags, "", "photo1: null\n");
-      } else {
-        printfv(*cli_flags, "",
-                "cbz_path: %s | id: %u | name: %s | width: %u | height: %u | "
-                "double_page: %u | on_its_side: %u\n",
-                photo1->cbz_path, photo1->id, photo1->name, photo1->width,
-                photo1->height, photo1->double_page, photo1->on_its_side);
-      }
-
-      if (!photo2) {
-        printfv(*cli_flags, "", "photo2: null\n");
-      } else {
-        printfv(*cli_flags, "",
-                "cbz_path: %s | id: %u | name: %s | width: %u | height: %u | "
-                "double_page: %u | on_its_side: %u\n",
-                photo2->cbz_path, photo2->id, photo2->name, photo2->width,
-                photo2->height, photo2->double_page, photo2->on_its_side);
-      }
-    }
-  } else {
-    for (uint32_t i = 0; i < photo_counter; i++) {
-      printfv(*cli_flags, "",
-              "cbz_path: %s | id: %u | name: %s | width: %u | height: %u | "
-              "double_page: %u | on_its_side: %u\n",
-              photos[i].cbz_path, photos[i].id, photos[i].name, photos[i].width,
-              photos[i].height, photos[i].double_page, photos[i].on_its_side);
-    }
-  }
 
   if (_str_ends_with(output_file, ".cbz")) {
-    _make_output_cbz(cli_flags, &photos, &photo_counter, output_file);
+    _make_output_cbz(cli_flags, photos, photo_counter, output_file);
   } else if (_str_ends_with(output_file, ".pdf")) {
-    _make_output_pdf(cli_flags, &pdf_photos, &pdf_photos_counter, output_file);
+    _make_output_pdf(cli_flags, photos, photo_counter, output_file);
   }
 
   for (uint32_t i = 0; i < photo_counter; i++) {
@@ -771,23 +754,5 @@ void extract_and_combine_cbz(const cli_flags_t   *cli_flags,
     freev(*cli_flags, photos[i].name, "photos[].name", i);
     freev(*cli_flags, photos[i].ext, "photos[].ext", i);
   }
-
-  if (pdf_photos) {
-    for (uint32_t i = 0; i < pdf_photos_counter; i++) {
-      photo_t *pp1 = pdf_photos[i].photo1, *pp2 = pdf_photos[i].photo2;
-      if (pp1) {
-        freev(*cli_flags, pp1->cbz_path, "pdf_photos[].photo2->cbz_path", i);
-        freev(*cli_flags, pp1->name, "photos[].photo2->name", i);
-        freev(*cli_flags, pp1->ext, "photos[].photo2->ext", i);
-      }
-      if (pp2) {
-        freev(*cli_flags, pp2->cbz_path, "pdf_photos[].photo2->cbz_path", i);
-        freev(*cli_flags, pp2->name, "photos[].photo2->name", i);
-        freev(*cli_flags, pp2->ext, "photos[].photo2->ext", i);
-      }
-    }
-    freev(*cli_flags, pdf_photos, "pdf_photos", -1);
-  }
-
   freev(*cli_flags, photos, "photos", -1);
 }

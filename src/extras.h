@@ -18,16 +18,6 @@ typedef enum {
 } color_mode_e;
 
 typedef enum {
-  ROTATE_DISABLED,
-  ROTATE_ENABLED,
-} rotate_mode_e;
-
-typedef enum {
-  FLIP_DISABLED,
-  FLIP_ENABLED,
-} flip_mode_e;
-
-typedef enum {
   DOUBLE_PAGE_FALSE,
   DOUBLE_PAGE_TRUE,
   DOUBLE_PAGE_LEFT,
@@ -43,7 +33,6 @@ typedef enum {
 #define RESET       "\033[0m"
 
 #define DEFAULT_OUTPUT_FILE_NAME "combined_output.cbz"
-#define CBZ                      ".cbz"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -73,8 +62,6 @@ typedef enum {
         "  -d,  --dirs          List all dirs (cannot be used with --files)\n"                              \
         "  -o,  --output        Specify output file (default is combined.cbz)\n"                            \
         "  -c, --color          Specify output to use color\n"                                              \
-        "  -r, --rotate         If a page on its side it will rotate and resize it\n"                       \
-        "  -p, --flip           Flip the pages so they can be printed to view right to left\n"              \
         "\nBecause of how the cli is parsed color then verbose options should go first (for good logs)\n",  \
         argv[0]);                                                                                           \
   } while (0)

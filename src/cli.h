@@ -10,8 +10,6 @@ typedef struct {
   verbose_mode_e verbose_mode;
   color_mode_e   color_mode;
   input_mode_e   input_mode;
-  rotate_mode_e  rotate_mode;
-  flip_mode_e    flip_mode;
 } cli_flags_t;
 
 /**

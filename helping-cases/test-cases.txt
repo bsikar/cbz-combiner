@@ -1,0 +1,50 @@
+#1: checked
+    input: [1, 2, 3L, 3R, 4L, 4R, 5, 6, 7L, 7R]
+    human_output: [1, X, 2, 3R, 3L, 4R, 4L, 5, 6, 7R, 7L, N]
+    output: [1, N, 7L, X, 2, 7R, 6, 3R, 3L, 5, 4L, 4R]
+
+#2: checked
+    input: [1, 2, 3L, 3R, 4L, 4R, 5]
+    human_output: [1 ,X, 2, 3R, 3L, 4R, 4L, 5]
+    output: [1, 5, 4L, X, 2, 4R, 3L, 3R]
+
+#3: checked
+    input: [1, 2L, 2R, 3L, 3R]
+    human_output: [1, 2R, 2L, 3R, 3L, N, N, N]
+    output: [1, N, N, 2R, 2L, N, 3L, 3R]
+
+- #4: checked
+-     input: [1, 2L, 2R, 3, 4L, 4R]
+-     human_output: [1, 2R, 2L, X, 3, 4R, 4L, N]
+-     output: [1, N, 4L, 2R, 2L, 4R,  3, X]
+- DUPLICATE WITH #5, CHANGE ME
+
+#5: checked
+    input: [1, 2L, 2R, 3, 4L, 4R]
+    human_output: [1, 2R, 2L, X, 3, 4R, 4L, N]
+    output: [1, N, 4L, 2R, 2L, 4R,  3, X]
+
+#6: checked
+    input: [1L, 1R, 2, 3L, 3R]
+    human_output: [X, 1R, 1L, X, 2, 3R, 3L, N]
+    output: [X, N, 3L, 1R, 1L, 3R, 2, X]
+
+#7: checked
+    input: [1L, 1R, 2, 3L, 3R, 4]
+    human_output: [X, 1R, 1L, X, 2, 3R, 3L, 4]
+    output: [X, 4, 3L, 1R, 1L, 3R, 2, X]
+
+#8: checked
+    input: [1L, 1R, 2, 3, 4L, 4R, 5, 6]
+    human_output: [X, 1R, 1L, 2, 3, 4R, 4L, 5, 6, N, N, N]
+    output: [X, N, N, 1R, 1L, N, 6, 2, 3, 5, 4L, 4R]
+
+#9: checked
+    input: [1, 2, 3, 4L, 4R, 5, 6, 7]
+    human_output: [1, 2, 3, 4R, 4L, 5, 6, 7]
+    output: [1, 7, 6, 2, 3, 5, 4L, 4R]
+
+#10: checked
+    input: [1, 2, 3L, 3R, 4, 5, 6L, 6R]
+    human_output: [1, X, 2, 3R, 3L, 4, 5, 6R, 6L, N, N, N]
+    output: [1, N, N, X, 2, N, 6L, 3R, 3L, 6R, 5, 4]

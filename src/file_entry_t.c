@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+// function for sorting with qsort
 int32_t compare_file_entry_ts(const void *a, const void *b) {
   file_entry_t *file_a = (file_entry_t *)a;
   file_entry_t *file_b = (file_entry_t *)b;
@@ -101,8 +102,9 @@ char *_construct_file_path(const cli_flags_t *cli_flags, const char *dir_name,
       dir_len + strlen(file_name) + (has_trailing_slash ? 1 : 2);
 
   char *file = mallocv(*cli_flags, "file", file_length, -1);
-  if (!file)
+  if (!file) {
     return NULL;
+  }
 
   if (has_trailing_slash) {
     snprintf(file, file_length, "%s%s", dir_name, file_name);
@@ -125,8 +127,7 @@ bool _process_directory(const cli_flags_t *cli_flags, const char *dir_name,
     return false;
   }
 
-  d = opendir(dir_name);
-  if (d == NULL) {
+  if (!(d = opendir(dir_name))) {
     return false;
   }
 
