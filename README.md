@@ -1,4 +1,13 @@
-Combine Manga in .cbz format
+## Combine Manga in .cbz or .pdf format
+
+### SCOPE
+
+This program only supports the follow and has no plans on supporting anything else:
+
+- Input files are CBZ's that follow a strict file name format
+- The CBZ's are supported if they contain only: JPEG/JPG or PNG photos, no other types are supported
+- The output file can either be a CBZ or a PDF, no other types are supported
+
 
 the current use case is to combine manga (or other cbz's) that follow this format:
 
@@ -19,11 +28,11 @@ sudo apt update
 sudo apt install libzip-dev bear libpng-dev libjpeg-dev libhpdf-dev
 bear -- make
 
-# good command to find all leaks
+## good command to find all leaks
 make valgrind VAL_ARGS="--leak-check=full --show-leak-kinds=all -s" ARGS="../../../Attack_on_Titan/* -v" > valgrind_output.txt 2>&1
 
 
-# how to actually find leaks, valgrind + gdb
+## how to actually find leaks, valgrind + gdb
 
 tmux
 -> then split screen
@@ -70,3 +79,5 @@ and you can do \<C-x\> NUMBER so \<C-x\> 2
 
 
 also to kill the valgrind instance you could do ^Z see what [X] it is like [2] then do kill %2
+
+
