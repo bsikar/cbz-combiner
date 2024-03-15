@@ -281,7 +281,6 @@ static bool _get_photo_index_from_source_zip(const cli_flags_t *cli_flags,
   return true;
 }
 
-/// XXX: FIXME: MEMORY LEAKS!!!
 static void _split_jpeg_buffer(const cli_flags_t *cli_flags, photo_t photo,
                                uint8_t **buffer, uint64_t *buffer_size) {
   struct jpeg_decompress_struct cinfo;
@@ -348,7 +347,6 @@ static void _split_jpeg_buffer(const cli_flags_t *cli_flags, photo_t photo,
 
   jpeg_set_defaults(&cinfo_compress);
   jpeg_set_quality(&cinfo_compress, 100, TRUE);
-  // XXX: HERE
   jpeg_start_compress(&cinfo_compress, TRUE);
 
   while (cinfo_compress.next_scanline < cinfo_compress.image_height) {
