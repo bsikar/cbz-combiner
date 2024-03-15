@@ -5,7 +5,7 @@
  * multiple .pngs or other images inside.
  *
  * This program will extract all of the .zips (.cbzs) then compress them into
- * one larger .cbz file.
+ * one larger .cbz or .pdf file.
  *
  * The only thing that will need to take account for is the naming of the pngs
  * inside the .cbz and their order (based off their names)
@@ -31,21 +31,21 @@ const char *error_messages[] = {
     /* 7 */ "Invalid file was supplied",
     /* 8 */ "Invlaid Directory was supplied"};
 
-void print_log_info(const cli_flags_t *cli_flags, const char *output_file,
-                    const uint32_t *input_count, const char **input);
+static void print_log_info(const cli_flags_t *cli_flags,
+                           const char *output_file, const uint32_t *input_count,
+                           const char **input);
 
-void handle_input_parsing(const cli_flags_t *cli_flags, uint32_t *input_count,
-                          uint32_t *file_count, char **input,
-                          file_entry_t **sorted_files);
+static void handle_input_parsing(const cli_flags_t *cli_flags,
+                                 uint32_t *input_count, uint32_t *file_count,
+                                 char **input, file_entry_t **sorted_files);
 
 int main(int argc, char **argv) {
-  uint32_t input_count  = 0;
-  char    *output_file  = (char *)malloc(strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
-  cli_flags_t cli_flags = {.input_mode   = INPUT_MODE_E_NONE,
-                           .color_mode   = COLOR_DISABLED,
-                           .verbose_mode = VERBOSE_MODE_E_NONE,
-                           .rotate_mode  = ROTATE_DISABLED,
-                           .flip_mode    = FLIP_DISABLED};
+  uint32_t    input_count = 0;
+  cli_flags_t cli_flags   = {.input_mode   = INPUT_MODE_E_NONE,
+                             .color_mode   = COLOR_DISABLED,
+                             .verbose_mode = VERBOSE_MODE_E_NONE};
+  char       *output_file = (char *)mallocv(cli_flags, "output_file",
+                                            strlen(DEFAULT_OUTPUT_FILE_NAME) + 1, -1);
   strncpyv(cli_flags, output_file, DEFAULT_OUTPUT_FILE_NAME,
            strlen(DEFAULT_OUTPUT_FILE_NAME) + 1,
            strlen(DEFAULT_OUTPUT_FILE_NAME) + 1);
@@ -75,14 +75,13 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-void print_log_info(const cli_flags_t *cli_flags, const char *output_file,
-                    const uint32_t *input_count, const char **input) {
+static void print_log_info(const cli_flags_t *cli_flags,
+                           const char *output_file, const uint32_t *input_count,
+                           const char **input) {
   if (cli_flags->verbose_mode) {
     printfv(*cli_flags, "", "verbose_mode: %d\n", cli_flags->verbose_mode);
     printfv(*cli_flags, "", "color_mode: %d\n", cli_flags->color_mode);
     printfv(*cli_flags, "", "input_mode: %d\n", cli_flags->input_mode);
-    printfv(*cli_flags, "", "flip_mode: %d\n", cli_flags->flip_mode);
-    printfv(*cli_flags, "", "rotate_mode: %d\n", cli_flags->rotate_mode);
     printfv(*cli_flags, "", "output_file: %s\n", output_file);
     printfv(*cli_flags, "", "output_file: %u\n", *input_count);
     for (uint32_t i = 0; i < *input_count; ++i) {
@@ -91,9 +90,9 @@ void print_log_info(const cli_flags_t *cli_flags, const char *output_file,
   }
 }
 
-void handle_input_parsing(const cli_flags_t *cli_flags, uint32_t *input_count,
-                          uint32_t *file_count, char **input,
-                          file_entry_t **sorted_files) {
+static void handle_input_parsing(const cli_flags_t *cli_flags,
+                                 uint32_t *input_count, uint32_t *file_count,
+                                 char **input, file_entry_t **sorted_files) {
   // files is default
   if (cli_flags->input_mode == FILES ||
       cli_flags->input_mode == INPUT_MODE_E_NONE) {

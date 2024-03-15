@@ -4,8 +4,8 @@ LINKER = gcc
 NAME = cbz-combiner
 
 # Compiler flags
-DEBUG_CFLAGS = -std=c17 -g -Wall   -Wunused-function
-RELEASE_CFLAGS = -std=c17 -O2 -Wall   -Wunused-function
+DEBUG_CFLAGS = -std=c17 -g -Wall -Wunused-function
+RELEASE_CFLAGS = -std=c17 -O2 -Wall -Wunused-function
 CFLAGS = $(DEBUG_CFLAGS)
 
 # Linker flags
@@ -59,20 +59,20 @@ run:
 
 # Additional Rules
 .PHONY: gdb debug valgrind release
-debug:
+debug: clean
 	@$(MAKE) CFLAGS="$(DEBUG_CFLAGS)"
 
-gdb:
+gdb: clean
 	@$(MAKE) CFLAGS="$(DEBUG_CFLAGS)"
 	@echo "Starting GDB..."
 	@gdb ./$(BIN_DIR)/$(NAME)
 
 # `make valgrind ARGS="--help" VAL_ARGS="--leak-check=yes --leak-check=full --tool=callgrind"`
 # `make valgrind VAL_ARGS="--leak-check=full --show-leak-kinds=all -s" ARGS="--help"`
-valgrind:
+valgrind: clean
 	@$(MAKE) CFLAGS="$(DEBUG_CFLAGS)"
 	@valgrind $(VAL_ARGS) ./$(BIN_DIR)/$(NAME) $(ARGS)
 
-release:
+release: clean
 	@$(MAKE) CFLAGS="$(RELEASE_CFLAGS)"
 

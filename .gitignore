@@ -15,6 +15,9 @@ RemoteSystemsTempFiles
 bin/
 obj/
 *.cbz
+*.pdf
+!helping-cases/*.cbz
+!helping-cases/*.pdf
 
 # Prerequisites
 *.d

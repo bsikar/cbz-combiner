@@ -18,17 +18,11 @@ typedef struct {
   uint32_t           width;
   uint32_t           height;
   uint32_t           id;
-  bool               on_its_side;
   double_page_mode_e double_page;
 } photo_t;
 
-typedef struct {
-  photo_t *photo1;
-  photo_t *photo2;
-} pdf_photo_t;
-
 /**
- * Compares two file_entry_t instances
+ * Compares two file_entry_t instances for qsort
  *
  * @param a Pointer to the first file instance
  * @param b Pointer to the second file instance

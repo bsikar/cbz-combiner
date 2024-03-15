@@ -76,10 +76,6 @@ void handle_cli(cli_flags_t *cli_flags, const int *argc, const char **argv,
       cli_flags->input_mode = DIRECTORIES;
     } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--color") == 0) {
       cli_flags->color_mode = COLOR_ENABLED;
-    } else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--rotate") == 0) {
-      cli_flags->rotate_mode = ROTATE_ENABLED;
-    } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--flip") == 0) {
-      cli_flags->flip_mode = FLIP_ENABLED;
     } else {
       // store the input files or directories
       if (cli_flags->input_mode == INPUT_MODE_E_NONE) {
