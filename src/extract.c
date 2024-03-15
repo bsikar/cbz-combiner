@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _POSIX_C_SOURCE 200809L /* for strdup */
 #include "extract.h"
 #include "cli.h"
 #include "extras.h"
@@ -165,13 +165,10 @@ static bool _get_width_height_and_type(const cli_flags_t *cli_flags,
   // Note: cannot use filetype variable since it might be named as a png
   // but be a jpeg
   if (is_png((unsigned char *)contents, st->size)) {
-    printfv(*cli_flags, RED,
-            "File is detected as a PNG\n"); // TODO: Change from RED when this
-                                            // is supported
     _get_png_dimensions_from_memory(cli_flags, (uint8_t *)contents, st->size,
                                     width, height);
     strncpyv(*cli_flags, *ext, ".png\0", 5, 5);
-    return false; // TODO: Chnage to true when this is supported
+    return true;
   }
   if (is_jpeg((unsigned char *)contents, st->size)) {
     printfv(*cli_flags, DARK_YELLOW, "File is detected as a JPEG\n");
@@ -281,6 +278,11 @@ static bool _get_photo_index_from_source_zip(const cli_flags_t *cli_flags,
   return true;
 }
 
+static void _split_png_buffer(const cli_flags_t *cli_flags, photo_t photo,
+                              uint8_t **buffer, uint64_t *buffer_size) {
+  /// TODO !!
+}
+
 static void _split_jpeg_buffer(const cli_flags_t *cli_flags, photo_t photo,
                                uint8_t **buffer, uint64_t *buffer_size) {
   struct jpeg_decompress_struct cinfo;
@@ -379,7 +381,7 @@ static bool _extact_image_from_source_to_buffer(
     const cli_flags_t *cli_flags, zip_t *src_zip, const char *name,
     zip_int64_t idx, photo_t photo, uint8_t **buffer, uint64_t *buffer_size,
     char new_filename[PATH_MAX]) {
-  /* extract png from source to buffer */
+  /* extract image from source to buffer */
   zip_file_t *zfile = zip_fopen_index(src_zip, idx, 0);
   if (!zfile) {
     printfv(*cli_flags, RED,
@@ -412,16 +414,22 @@ static bool _extact_image_from_source_to_buffer(
   /* Handle double page */
   if (photo.double_page != DOUBLE_PAGE_FALSE) {
     // split the file [X|X] [X|_] or [_|X]
-    // XXX : Currently working on this function
-    // TODO: add png support
     if (strncmp(photo.ext, ".jpg", 4) == 0) {
       _split_jpeg_buffer(cli_flags, photo, buffer, buffer_size);
+    } else if (strncmp(photo.ext, ".png", 4) == 0) {
+      _split_png_buffer(cli_flags, photo, buffer, buffer_size);
     } else {
       printfv(*cli_flags, RED, "Error: Unsupported file type\n");
       return false;
     }
   }
   return true;
+}
+void _draw_pdf_png_image(HPDF_Doc pdf, HPDF_Page page,
+                         const unsigned char *buffer, unsigned int buffer_size,
+                         float x_position, float available_width,
+                         float available_height, float border) {
+  /// TODO !!
 }
 
 void _draw_pdf_jpeg_image(HPDF_Doc pdf, HPDF_Page page,
@@ -477,8 +485,6 @@ static bool _handle_pdf_buffer(const cli_flags_t *cli_flags, zip_t *src_zip1,
                                zip_t *src_zip2, HPDF_Doc *pdf, zip_int64_t idx1,
                                zip_int64_t idx2, photo_t *photo1,
                                photo_t *photo2) {
-  // TODO: Alter logic to allow for jpeg or png
-  // Then add support for png
   uint8_t *buffer1 = NULL, *buffer2 = NULL;
   uint64_t buffer_size1 = 0, buffer_size2 = 0;
   char     new_filename1[PATH_MAX], new_filename2[PATH_MAX];
@@ -504,15 +510,33 @@ static bool _handle_pdf_buffer(const cli_flags_t *cli_flags, zip_t *src_zip1,
   float available_width  = (page_width / 2) - (2 * border);
   float available_height = page_height - (2 * border);
 
+  // Only now does it matter if its jpeg or png
   if (photo1) {
-    _draw_pdf_jpeg_image(*pdf, page, buffer1, buffer_size1, border,
-                         available_width, available_height, border);
+    if (strncmp(photo1->ext, ".jpg", 4) == 0) {
+      _draw_pdf_jpeg_image(*pdf, page, buffer1, buffer_size1, border,
+                           available_width, available_height, border);
+    } else if (strncmp(photo1->ext, ".png", 4) == 0) {
+      _draw_pdf_png_image(*pdf, page, buffer1, buffer_size1, border,
+                          available_width, available_height, border);
+    } else {
+      printfv(*cli_flags, RED, "Error: Unsupported file type\n");
+      return false;
+    }
   }
 
   if (photo2) {
-    _draw_pdf_jpeg_image(*pdf, page, buffer2, buffer_size2,
-                         (page_width / 2) + border, available_width,
-                         available_height, border);
+    if (strncmp(photo2->ext, ".jpg", 4) == 0) {
+      _draw_pdf_jpeg_image(*pdf, page, buffer2, buffer_size2,
+                           (page_width / 2) + border, available_width,
+                           available_height, border);
+    } else if (strncmp(photo2->ext, ".png", 4) == 0) {
+      _draw_pdf_png_image(*pdf, page, buffer2, buffer_size2,
+                          (page_width / 2) + border, available_width,
+                          available_height, border);
+    } else {
+      printfv(*cli_flags, RED, "Error: Unsupported file type\n");
+      return false;
+    }
   }
 
   _draw_pdf_dashed_line(page, page_width, page_height, border);
@@ -523,6 +547,8 @@ static bool _handle_pdf_buffer(const cli_flags_t *cli_flags, zip_t *src_zip1,
 static bool _handle_zip_buffer(const cli_flags_t *cli_flags, zip_t *src_zip,
                                zip_t **dest_zip, const char *name,
                                zip_int64_t idx, photo_t photo) {
+  // NOTE: Since the image is in the buffer the filetype doesnt matter
+  // JPEG and PNG are treated the same (it matters for pdf though)
   uint8_t *buffer;
   uint64_t buffer_size;
   char     new_filename[PATH_MAX];
