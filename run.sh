@@ -6,5 +6,8 @@
 #make run ARGS="-v -c -f ./t[01].cbz -o Tsubaki-chou_Lonely_Planet.pdf"
 #make gdb ARGS="-v -c -f ./t[01].cbz -o Tsubaki-chou_Lonely_Planet.pdf"
 #make run ARGS="-v -c -f ./custom[0001].cbz -o custom.pdf"
-make valgrind ARGS="-v -c -f ./custom[0001].cbz -o custom.pdf" VAL_ARGS=" --leak-check=full -s  --track-origins=yes"
-#make run ARGS="-v -c -d ~/media/manga/Kamisama_Kiss -o custom.pdf"
+make run ARGS="-v -c -d ~/media/manga/Kamisama_Kiss -o reb.pdf"
+
+#make run ARGS="-v -c -f ./custom[0001]-jpg.cbz -o custom-jpg.pdf" VAL_ARGS=" --leak-check=full -s  --track-origins=yes"
+#echo -e '\n\n'
+#make run ARGS="-v -c -f ./custom[0001]-png.cbz -o custom-png.pdf" VAL_ARGS=" --leak-check=full -s  --track-origins=yes"

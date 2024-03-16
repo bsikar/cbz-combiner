@@ -167,6 +167,7 @@ static bool _get_width_height_and_type(const cli_flags_t *cli_flags,
   if (is_png((unsigned char *)contents, st->size)) {
     _get_png_dimensions_from_memory(cli_flags, (uint8_t *)contents, st->size,
                                     width, height);
+    printfv(*cli_flags, DARK_YELLOW, "File is detected as a PNG\n");
     strncpyv(*cli_flags, *ext, ".png\0", 5, 5);
     return true;
   }
@@ -281,6 +282,8 @@ static bool _get_photo_index_from_source_zip(const cli_flags_t *cli_flags,
 static void _split_png_buffer(const cli_flags_t *cli_flags, photo_t photo,
                               uint8_t **buffer, uint64_t *buffer_size) {
   /// TODO !!
+  printfv(*cli_flags, RED, "PNG IS NOT SUPPORTED YET\n");
+  exit(-11);
 }
 
 static void _split_jpeg_buffer(const cli_flags_t *cli_flags, photo_t photo,
